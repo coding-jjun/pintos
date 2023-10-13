@@ -36,6 +36,7 @@ struct page_operations;
 struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
+#define NOT_ACCESSED 0
 
 /* The representation of "page".
  * This is kind of "parent class", which has four "child class"es, which are
@@ -66,6 +67,7 @@ struct page {
 struct frame {
 	void *kva;
 	struct page *page;
+	struct list_elem frame_elem;
 };
 
 /* The function table for page operations.
@@ -114,8 +116,11 @@ void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
 
+//SECTION - project 3 VM
 unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED);
 bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 struct page* helem_to_page(const struct hash_elem *helem);
+struct frame *elem_to_frame(struct list_elem *e);
+//!SECTION - project 3 VM
 
 #endif  /* VM_VM_H */

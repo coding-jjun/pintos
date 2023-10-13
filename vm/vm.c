@@ -4,6 +4,11 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 
+/* [ Add - LIB ] 2023.10.13accessed bit 확인하기 위한 매크로 */
+#include "include/threads/pte.h"
+
+struct list frame_table;
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -46,7 +51,22 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
-	struct supplemental_page_table *spt = &thread_current ()->spt;
+	struct thread *cur_t = thread_current();
+	struct supplemental_page_table *spt = &cur_t -> spt;
+	struct page *page = (struct page*) upage;
+
+	switch(type){
+		case VM_UNINIT:
+			uninit_initialize(page, page -> frame -> kva);
+			break;
+		case VM_ANON:
+			break;
+		case VM_FILE:
+			break;
+		case VM_PAGE_CACHE:
+			break;
+		default:
+	}
 
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
@@ -90,10 +110,32 @@ void spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 }
 
 /* Get the struct frame, that will be evicted. */
-static struct frame *
-vm_get_victim (void) {
+/* [ Upt - Group ] 2023.10.13 vm_get_victim 함수 구현 */
+static struct frame *vm_get_victim (void) {
+	/* TODO: The policy for eviction is up to you. */
+	if(list_empty(&frame_table)) return;
+
 	struct frame *victim = NULL;
-	 /* TODO: The policy for eviction is up to you. */
+	struct thread *cur_t = thread_current();
+	struct list_elem *e;
+
+	for(e = list_begin(&frame_table); e != list_end(&frame_table); e = list_next(e)){
+		victim = elem_to_frame(e);
+
+		if(!pml4_is_accessed(cur_t -> pml4, victim -> kva)) {
+			return victim;
+		}
+	}
+
+	// clock algorithm
+	if (victim == list_end(&frame_table)) {
+		for(e = list_begin(&frame_table); e != list_end(&frame_table); e = list_next(e)) {
+			victim = elem_to_frame(e);
+
+			pml4_set_accessed(cur_t -> pml4, victim -> kva, NOT_ACCESSED);
+		}
+		return elem_to_frame(list_pop_front(&frame_table));
+	}
 
 	return victim;
 }
@@ -103,7 +145,10 @@ vm_get_victim (void) {
 static struct frame *
 vm_evict_frame (void) {
 	struct frame *victim UNUSED = vm_get_victim ();
+
 	/* TODO: swap out the victim and return the evicted frame. */
+	// swap 관련 함수들 구현이 안되어있음
+	swap_out(victim -> page);
 
 	return NULL;
 }
@@ -112,10 +157,24 @@ vm_evict_frame (void) {
  * and return it. This always return valid address. That is, if the user pool
  * memory is full, this function evicts the frame to get the available memory
  * space.*/
-static struct frame *
-vm_get_frame (void) {
-	struct frame *frame = NULL;
+/* [ Upt - Group ] 2023.10.13 vm_get_frame 함수 구현 */
+static struct frame * vm_get_frame (void) {
 	/* TODO: Fill this function. */
+	struct frame *frame = (struct frame*)malloc(sizeof(struct frame));
+
+	// 프레임 필드 값들 초기화 필요함
+	frame -> kva = palloc_get_page(PAL_USER);
+	// frame -> page
+
+	if(!frame -> kva){
+		vm_evict_frame();
+		// 할당 실패시 vm_evict_frame 함수 호출해서 프레임 자리 만들어야함 (accessed bit 확인 후)
+	}
+
+	list_push_back(&frame_table, &frame -> frame_elem);
+
+	// 페이지 할당 실패시 panic이 아니라 swap 해야하는데 구현 아직 안됨
+	// PANIC("to do");
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -202,13 +261,19 @@ unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED) {
   return hash_bytes(&p->va, sizeof p->va);
 }
 
-/* Returns true if page a precedes page b. */
 /* [ Upt - LIB ] 2023.10.13 gitbook help function 추가 */
 bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED) {
   return helem_to_page(a_)->va < helem_to_page(b_)->va;
 }
 
+/* Returns true if page a precedes page b. */
+// SECTION - Project 3 VM
 /* [ Add - LIB ] 2023.10.13 변환 함수 추가 */
 struct page* helem_to_page(const struct hash_elem *helem){
 	return hash_entry(helem, struct page, hash_elem);
 }
+
+struct frame *elem_to_frame(struct list_elem *e){
+	return list_entry(e, struct frame, frame_elem);
+}
+// !SECTION - Project 3 VM
