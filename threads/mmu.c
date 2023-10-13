@@ -68,7 +68,7 @@ pml4e_walk (uint64_t *pml4e, const uint64_t va, int create) {
 	int allocated = 0;
 	if (pml4e) {
 		uint64_t *pdpe = (uint64_t *) pml4e[idx];
-		if (!((uint64_t) pdpe & PTE_P)) {
+		if (!((uint64_t) pdpe & PTE_P)) {		
 			if (create) {
 				uint64_t *new_page = palloc_get_page (PAL_ZERO);
 				if (new_page) {
