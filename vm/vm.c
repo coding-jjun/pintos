@@ -61,26 +61,30 @@ err:
 }
 
 /* Find VA from spt and return page. On error, return NULL. */
-struct page *
-spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
+/* Returns the page containing the given virtual address, or a null pointer if no such page exists. */
+/* [ Upt - LIB ] 2023.10.13 gitbook help function 추가  */
+struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	/* TODO: Fill this function. */
+	struct page p;
+  	struct hash_elem *e;
 
-	return page;
+	p.va = va;
+	e = hash_find(&spt->hash_table, &p.hash_elem);
+
+	return e != NULL ? helem_to_page(e) : NULL;
 }
 
 /* Insert PAGE into spt with validation. */
-bool
-spt_insert_page (struct supplemental_page_table *spt UNUSED,
-		struct page *page UNUSED) {
-	int succ = false;
-	/* TODO: Fill this function. */
-
-	return succ;
+/* [ Upt - LIB ] 2023.10.13 insert 추가  */
+bool spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
+	/* TODO: Fill this function. */;
+	return hash_insert(&spt -> hash_table, &page -> hash_elem) ? true : false;
 }
 
-void
-spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
+/* [ Upt - LIB ] 2023.10.13 delete 추가  */
+void spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
+	// 필요한 코드인지 확신 x
+	// hash_delete(&spt -> hash_table, &page -> hash_elem);    
 	vm_dealloc_page (page);
 	return true;
 }
@@ -172,8 +176,9 @@ vm_do_claim_page (struct page *page) {
 }
 
 /* Initialize new supplemental page table */
-void
-supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+/* [ Upt - LIB ] 2023.10.13 init 추가 */
+void supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	hash_init(&spt -> hash_table, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
@@ -187,4 +192,23 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+}
+
+/* Returns a hash value for page p. */
+/* [ Upt - LIB ] 2023.10.13 gitbook help function 추가 */
+unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED) {
+  const struct page *p = helem_to_page(p_);
+
+  return hash_bytes(&p->va, sizeof p->va);
+}
+
+/* Returns true if page a precedes page b. */
+/* [ Upt - LIB ] 2023.10.13 gitbook help function 추가 */
+bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED) {
+  return helem_to_page(a_)->va < helem_to_page(b_)->va;
+}
+
+/* [ Add - LIB ] 2023.10.13 변환 함수 추가 */
+struct page* helem_to_page(const struct hash_elem *helem){
+	return hash_entry(helem, struct page, hash_elem);
 }
