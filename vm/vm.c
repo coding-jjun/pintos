@@ -21,11 +21,13 @@ vm_init (void) {
 /* Get the type of the page. This function is useful if you want to know the
  * type of the page after it will be initialized.
  * This function is fully implemented now. */
+ /*페이지가 초기화된 후에 그 유형을 알고 싶을 때 유용하다.
+   완전히 구현이 된 상태*/
 enum vm_type
 page_get_type (struct page *page) {
 	int ty = VM_TYPE (page->operations->type);
 	switch (ty) {
-		case VM_UNINIT:
+		case VM_UNINIT://페이지가 초기화되지 않은 상태라면
 			return VM_TYPE (page->uninit.type);
 		default:
 			return ty;
@@ -40,6 +42,10 @@ static struct frame *vm_evict_frame (void);
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
+/*초기화 함수를 가진 pending 상태의 페이지 객체를 생성한다.
+  페이지를 생성하려면 이 함수를 통하거나, vm_alloc_page를 통해 페이지를 직접 만들지 말고 생성
+  실제 메모리에 할당되지 않은, 즉, 보류 중인(pending상태의) 페이지 객체를 의미한다.
+  실제 물리 메모리에 로딩되지 않은 가상 메모리 페이지를 의미한다.*/
 bool
 vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
@@ -48,7 +54,10 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 
-	/* Check wheter the upage is already occupied or not. */
+	/* Check whether the upage is already occupied or not. */
+	/*upage가 이미 사용중인지 아닌지 확인
+	  특정 가상 메모리 주소가 이미 다른 페이지와 매핑되어 있는지 아닌지를 확인하는 작업
+	  upage가 주소인거면 이미 사용중인건지 확인하는건가?*/
 	if (spt_find_page (spt, upage) == NULL) {
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
@@ -61,6 +70,7 @@ err:
 }
 
 /* Find VA from spt and return page. On error, return NULL. */
+/*spt에서 va를 찾아 page를 반환한다.*/
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
@@ -108,6 +118,9 @@ vm_evict_frame (void) {
  * and return it. This always return valid address. That is, if the user pool
  * memory is full, this function evicts the frame to get the available memory
  * space.*/
+/*palloc() 호출 및 프레임 획득. 만약 사용가능 한 페이지가 없다면, 페이지를 추방하고 반환한다.
+  이 함수는 항상 유효한 주소를 반환한다. 즉, user pool 메모리가 가득차면, 이 함수는 사용
+  가능한 메모리 영역을 얻기 위해 프레임을 추방한다*/
 static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
@@ -124,6 +137,8 @@ vm_stack_growth (void *addr UNUSED) {
 }
 
 /* Handle the fault on write_protected page */
+/*쓰기 보호된 페이지에 발생한 결함을 어떻게 처리할 것인지
+  쓰기 보호된 페이지 : 해당 페이지에 대한 쓰기 연산이 제한되거나 금지된 페이지*/
 static bool
 vm_handle_wp (struct page *page UNUSED) {
 }
@@ -149,6 +164,7 @@ vm_dealloc_page (struct page *page) {
 }
 
 /* Claim the page that allocate on VA. */
+/*va에 할당된 페이지를 요구하다*/
 bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;

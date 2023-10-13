@@ -65,6 +65,7 @@ struct hash {
 };
 
 /* A hash table iterator. */
+/* iterator : 순차적으로 순회하는 것. 조건 없이.*/
 struct hash_iterator {
 	struct hash *hash;          /* The hash table. */
 	struct list *bucket;        /* Current bucket. */

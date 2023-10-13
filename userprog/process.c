@@ -23,7 +23,7 @@
 #include <string.h>
 
 #ifdef VM
-#include "process.h"
+// #include "process.h"
 #include "vm/vm.h"
 #endif
 
@@ -318,7 +318,7 @@ int process_wait(tid_t child_tid UNUSED) {
   // }
   
   if ((ch_info = tid_to_child_info(child_tid)) != NULL) {
-    bool exited = ch_info->exited;
+    bool exited = ch_info->exited;  //죽었는지 안죽었는지, 안죽었으면 기다려야함
     if (exited == 0) {
       sema_down(&ch_info->th->wait_sema);
     }
@@ -789,20 +789,16 @@ static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: VA is available when calling this function. */
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
+/* 주소 UPAGE에 파일의 OFS 오프셋에서 시작하는 세그먼트를 로드합니다.
+ * 총 READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 다음과 같이 초기화됩니다:
  *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
+ * - UPAGE에 있는 READ_BYTES 바이트는 OFS 오프셋에서 시작하는 FILE에서 읽어야 합니다.
+ * - UPAGE + READ_BYTES에 있는 ZERO_BYTES 바이트는 0으로 초기화되어야 합니다.
  *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
+ * 이 함수에 의해 초기화된 페이지는, WRITABLE이 true이면 사용자 프로세스에 의해 쓰기 가능해야 하며,
+ * 그렇지 않으면 읽기 전용이어야 합니다.
  *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+ * 성공적이면 true를 반환하고, 메모리 할당 에러 또는 디스크 읽기 에러가 발생하면 false를 반환합니다. */
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable) {

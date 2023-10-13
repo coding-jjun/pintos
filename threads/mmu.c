@@ -231,13 +231,13 @@ pml4_get_page (uint64_t *pml4, const void *uaddr) {
  * failed. */
 bool
 pml4_set_page (uint64_t *pml4, void *upage, void *kpage, bool rw) {
-	ASSERT (pg_ofs (upage) == 0);
-	ASSERT (pg_ofs (kpage) == 0);
-	ASSERT (is_user_vaddr (upage));
-	ASSERT (pml4 != base_pml4);
+	ASSERT (pg_ofs (upage) == 0);			//정렬 확인
+	ASSERT (pg_ofs (kpage) == 0);			//정렬 확인	
+	ASSERT (is_user_vaddr (upage));			//user page로 받았는지 확인하고
+	ASSERT (pml4 != base_pml4);				//
 
 	uint64_t *pte = pml4e_walk (pml4, (uint64_t) upage, 1);
-
+	
 	if (pte)
 		*pte = vtop (kpage) | PTE_P | (rw ? PTE_W : 0) | PTE_U;
 	return pte != NULL;

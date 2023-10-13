@@ -2,4 +2,4 @@ cd threads
 make clean
 make
 cd build
-pintos --gdb -- -q run $1
+# pintos --gdb -- -q run $1

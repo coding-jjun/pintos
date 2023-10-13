@@ -1,4 +1,4 @@
-#include "threads/thread.h"
+
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
@@ -12,6 +12,7 @@
 #include "threads/vaddr.h"
 #include "intrinsic.h"
 #include "devices/timer.h"
+#include "threads/thread.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "lib/user/syscall.h"
@@ -674,7 +675,7 @@ struct thread *d_elem_to_thread(const struct list_elem *e) {
 /**
  * @brief Get the donated priority RECURSIVELY
  */
-int get_priority(struct thread *target) {
+int pget_priority(struct thread *target) {
   if (list_empty(&target->donation_list)) {
     // original priority
     return target->priority;
@@ -682,6 +683,16 @@ int get_priority(struct thread *target) {
   // not empty list
   struct list_elem *max_elem = list_max(&target->donation_list, priority_asc_d, NULL);
 
+  return get_priority(d_elem_to_thread(max_elem));
+}
+
+int get_priority(struct thread *target) {
+  if (list_empty(&target->donation_list)) {
+    // original priority
+    return target->priority;
+  }
+  // not empty list
+  struct list_elem *max_elem = list_max(&target->donation_list, priority_asc_d, NULL);
   return get_priority(d_elem_to_thread(max_elem));
 }
 
