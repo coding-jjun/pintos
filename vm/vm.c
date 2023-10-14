@@ -5,7 +5,7 @@
 #include "vm/inspect.h"
 
 /* [ Add - LIB ] 2023.10.13 accessed bit 확인하기 위한 매크로 */
-#include "include/threads/pte.h"
+#include "threads/pte.h"
 
 struct list frame_table;
 
@@ -59,30 +59,22 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage
 	struct lazy_load_info *info = (struct lazy_load_info *) aux;
 
 	/* Check wheter the upage is already occupied or not. */
+	//NOTE - pg_round_down를 해서 page의 시작 주소를 가르키게 해야하는 것 같음 ex) pg_round_down를(upage)
 	if(spt_find_page(spt, upage) == NULL) {
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
 		
 		switch(type){
-			// case VM_UNINIT:
-			// 컴파일 에러남 (initializer 함수는 없음 uninit.c에)
-			// uninit_new(page, upage, init, type, aux, uninit_initialize);
-			// break;
 			case VM_ANON:
 				uninit_new(page, upage, init, type, aux, anon_initializer);
 				break;
 			case VM_FILE:
 				uninit_new(page, upage, init, type, aux, file_backed_initializer);
 				break;
-			// case VM_PAGE_CACHE:
-			// 	break;
 			default:
+				NOT_REACHED();
 		}
-
-		// 이거 둘 세팅?
-		// page -> frame
-		// page -> va
 
 		/* TODO: Insert the page into the spt. */
 		spt_insert_page(spt, page);
@@ -97,9 +89,9 @@ err:
 struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	/* TODO: Fill this function. */
 	struct page p;
-  	struct hash_elem *e;
+	struct hash_elem *e;
 
-	p.va = va;
+	p.va = pg_round_down(va);
 	e = hash_find(&spt->hash_table, &p.hash_elem);
 
 	return e != NULL ? helem_to_page(e) : NULL;
@@ -153,7 +145,7 @@ static struct frame *vm_get_victim (void) {
 
 /* Evict one page and return the corresponding frame.
  * Return NULL on error.*/
-static struct frame *vm_evict_frame (void) {
+static struct frame * vm_evict_frame (void) {
 	struct frame *victim UNUSED = vm_get_victim ();
 
 	/* TODO: swap out the victim and return the evicted frame. */
@@ -205,12 +197,18 @@ vm_handle_wp (struct page *page UNUSED) {
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
-	struct page *page = NULL;
+	
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+	struct page *page = spt_find_page(spt, addr);
 
-	return vm_do_claim_page (page);
+	if(page != NULL){
+	  return vm_do_claim_page(page);
+	} else {
+
+		return NULL;
+	}
 }
 
 /* Free the page.
@@ -231,8 +229,7 @@ vm_claim_page (void *va UNUSED) {
 }
 
 /* Claim the PAGE and set up the mmu. */
-static bool
-vm_do_claim_page (struct page *page) {
+static bool vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
 
 	/* Set links */
@@ -241,9 +238,9 @@ vm_do_claim_page (struct page *page) {
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	/* REVIEW - 위에 코드가 매핑 확인 없는 코드라서 insert는 해야하는거 같은데 */
-	spt_insert_page(&thread_current() -> spt, page); 
+	// spt_insert_page(&thread_current() -> spt, page);
 
-	return swap_in (page, frame->kva);
+	return swap_in(page, frame->kva);
 }
 
 /* Initialize new supplemental page table */

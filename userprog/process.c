@@ -80,20 +80,19 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED) {
   // TODO - do wait until child process done fork
   struct thread *cur = thread_current();
   struct list_elem *e;
-  struct list *c_list = &cur->child_list;  // 자식의 유서 장부
+  struct list *c_list = &cur->child_list; // 자식의 유서 장부
   struct thread *child_th;
   struct child_info *ch_info;
 
   /* Clone current thread to new thread.*/
   tid_t tid = thread_create(name, PRI_DEFAULT, __do_fork, thread_current());
-  if (tid == TID_ERROR) {  // 자식이 create가 되지 않은 경우
+  if (tid == TID_ERROR) { // 자식이 create가 되지 않은 경우
     return TID_ERROR;
   }
-  // cur(부모)의 child_list에 위에서 create한 자식의 child_info의 c_elem이 들어가있다.
-  // 방금 추가된 child_info를 tid로 찾는다.
-  // 찾은 tid로 방금 생성된 thread를 찾는다.
-  // 방금 생성된 thread의 fork_sema를 sema_down한다.
-  // for (e = list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
+  // cur(부모)의 child_list에 위에서 create한 자식의 child_info의 c_elem이
+  // 들어가있다. 방금 추가된 child_info를 tid로 찾는다. 찾은 tid로 방금 생성된
+  // thread를 찾는다. 방금 생성된 thread의 fork_sema를 sema_down한다. for (e =
+  // list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
   //   ch_info = list_entry(e, struct child_info, c_elem);  // 자식의 유서
   //   if (tid == ch_info->pid) {  // 기다리려는 자식이 맞다면
   //     child_th = ch_info->th;  // 자식의 thread// 내 자식이 맞다!
@@ -105,7 +104,8 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED) {
   child_th = ch_info->th;
   sema_down(&child_th->fork_sema);
 
-  if (child_th->exit_status == -1) {  // 자식이 fork가 제대로 되지 않고 종료된 경우
+  if (child_th->exit_status ==
+      -1) { // 자식이 fork가 제대로 되지 않고 종료된 경우
     return TID_ERROR;
   }
   return tid;
@@ -223,7 +223,7 @@ static void __do_fork(void *aux) {
   if (succ)
     do_iret(&if_);
 
-error:  // fork가 제대로 되지 않은 경우
+error: // fork가 제대로 되지 않은 경우
   current->exit_status = -1;
   sema_up(&current->fork_sema);
   exit(-1);
@@ -240,7 +240,7 @@ int process_exec(void *f_name) {
       0,
   };
   char *token, *save_ptr; // token화 하기 위한 변수
-  int argc = 0;  // argument 개수
+  int argc = 0;           // argument 개수
 
   for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
        token = strtok_r(NULL, " ", &save_ptr)) {
@@ -268,7 +268,7 @@ int process_exec(void *f_name) {
   /* 유저스택에 인자 추가 */
   argument_stack(argc, argv, &_if);
   palloc_free_page(file_copy);
-  
+
   /* 프로세스 전환하여 실행 */
   do_iret(&_if);
   NOT_REACHED();
@@ -315,17 +315,17 @@ int process_wait(tid_t child_tid UNUSED) {
   // } else {  // 기다리려는 자식이 내 자식이 아닌 경우
   //   return -1;
   // }
-  
+
   if ((ch_info = tid_to_child_info(child_tid)) != NULL) {
     bool exited = ch_info->exited;
     if (exited == 0) {
       sema_down(&ch_info->th->wait_sema);
     }
-    int child_status = ch_info->exit_status;  // 자식의 사망 원인 조사
-    list_remove(&ch_info->c_elem);  // 호적에서 제거
-    free(ch_info);  // 주민등록 말소 (사망신고 처리)
+    int child_status = ch_info->exit_status; // 자식의 사망 원인 조사
+    list_remove(&ch_info->c_elem);           // 호적에서 제거
+    free(ch_info); // 주민등록 말소 (사망신고 처리)
     return child_status;
-  } else {  // 기다리려는 자식이 내 자식이 아닌 경우
+  } else { // 기다리려는 자식이 내 자식이 아닌 경우
     return -1;
   }
 }
@@ -347,10 +347,12 @@ void process_exit(void) {
   palloc_free_multiple(t->fd_table, FDT_PAGES);
   file_close(t->running); // 실행중인 파일 닫기
 
-  /* 부모가 가진 내 유서를 수정. { exit_status(사망 원인), exited(사망 여부) } */
+  /* 부모가 가진 내 유서를 수정. { exit_status(사망 원인), exited(사망 여부) }
+   */
   if (t->parent != NULL) {
     struct list *c_list = &t->parent->child_list;
-    for (struct list_elem *e = list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
+    for (struct list_elem *e = list_begin(c_list); e != list_end(c_list);
+         e = list_next(e)) {
       struct child_info *my_info = list_entry(e, struct child_info, c_elem);
       if (t->tid == my_info->pid) {
         my_info->exit_status = t->exit_status;
@@ -362,7 +364,8 @@ void process_exit(void) {
 
   /* 내가 가진 자식들의 유서 전부 폐기 */
   while (!list_empty(&t->child_list)) {
-    struct child_info *ch_info = list_entry(list_pop_front(&t->child_list), struct child_info, c_elem);
+    struct child_info *ch_info =
+        list_entry(list_pop_front(&t->child_list), struct child_info, c_elem);
     ch_info->th->parent = NULL;
     free(ch_info);
   }
@@ -629,8 +632,9 @@ struct child_info *tid_to_child_info(tid_t child_tid) {
   struct list_elem *e;
   struct child_info *ch_info;
   for (e = list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
-    ch_info = list_entry(e, struct child_info, c_elem);  // 자식의 유서
-    if (ch_info->pid == child_tid) {  // 기다리려는 자식이 맞다면 자식의 thread// 내 자식이 맞다!
+    ch_info = list_entry(e, struct child_info, c_elem); // 자식의 유서
+    if (ch_info->pid ==
+        child_tid) { // 기다리려는 자식이 맞다면 자식의 thread// 내 자식이 맞다!
       return ch_info;
     }
   }
@@ -777,7 +781,7 @@ static bool install_page(void *upage, void *kpage, bool writable) {
   return (pml4_get_page(t->pml4, upage) == NULL &&
           pml4_set_page(t->pml4, upage, kpage, writable));
 }
-#else // VM
+#else  // VM
 
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
@@ -786,6 +790,20 @@ static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
+
+  struct lazy_load_info *load_info = (struct lazy_load_info*) aux;
+  struct thread *cur = thread_current();
+  //FIXME - 다시 볼 것
+  void *kpage = page -> va;
+
+  file_seek(load_info -> file, load_info -> ofs);
+
+  if(file_read(load_info -> file, kpage, load_info -> read_bytes) != (int)load_info -> read_bytes){
+    return false;
+  }
+
+  memset(kpage + load_info -> read_bytes, 0 , load_info -> zero_bytes);
+  pml4_set_page(cur -> pml4, page -> va, page -> frame -> kva, load_info -> writable);
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -819,13 +837,14 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     /* TODO: Set up aux to pass information to the lazy_load_segment. */
     struct lazy_load_info *aux = malloc(sizeof(struct lazy_load_info));
 
-    aux -> file = file;
-    aux -> ofs = ofs;
-    aux -> read_bytes = read_bytes;
-    aux -> zero_bytes = zero_bytes;
-    aux -> writable = writable;
+    aux->file = file;
+    aux->ofs = ofs;
+    aux->read_bytes = read_bytes;
+    aux->zero_bytes = zero_bytes;
+    aux->writable = writable;
 
-    if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
+    if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable,
+                                        lazy_load_segment, aux))
       return false;
 
     /* Advance. */
@@ -848,8 +867,6 @@ static bool setup_stack(struct intr_frame *if_) {
    * TODO: If success, set the rsp accordingly.
    * TODO: You should mark the page is stack. */
   /* TODO: Your code goes here */
-
-  //pml4_set_page
 
   return success;
 }

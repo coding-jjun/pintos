@@ -3,6 +3,7 @@
 
 #include "threads/thread.h"
 
+/* [ Add - LIB ] 2023.10.14 load segment의 aux 구현을 위한 구조체 */
 struct lazy_load_info{
     struct file *file;
     off_t ofs;
