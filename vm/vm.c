@@ -101,6 +101,7 @@ struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va
 /* [ Upt - LIB ] 2023.10.13 insert 추가  */
 bool spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
 	/* TODO: Fill this function. */;
+	page -> va = pg_round_down(page -> va);
 	return hash_insert(&spt -> hash_table, &page -> hash_elem) ? true : false;
 }
 
