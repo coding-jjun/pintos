@@ -48,8 +48,9 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
-	/* [ Add - LIB ] 2023.10.13 필드 추가 */
+	bool is_stack;
 	struct hash_elem hash_elem;
+	
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */

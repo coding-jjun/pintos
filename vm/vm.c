@@ -55,30 +55,46 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage
 	struct supplemental_page_table *spt = &cur_t -> spt;
 	// struct page *page = (struct page*) upage;
 	// 밑에서 page랑 upage 인자로 따로 받는거 보면 다른 변수인듯
-	struct page *page = (struct page*) malloc(sizeof(struct page));
 	struct lazy_load_info *info = (struct lazy_load_info *) aux;
+	struct page *page = (struct page*) malloc(sizeof(struct page));
+	if (!page) {
+		return false;
+	}
+	
+	if (spt_find_page(spt, upage) != NULL) {
+		free(page);
+		return false;
+	}
 
 	/* Check wheter the upage is already occupied or not. */
 	//NOTE - pg_round_down를 해서 page의 시작 주소를 가르키게 해야하는 것 같음 ex) pg_round_down를(upage)
-	if(spt_find_page(spt, upage) == NULL) {
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
+	/* TODO: Create the page, fetch the initialier according to the VM type,
+	* TODO: and then create "uninit" page struct by calling uninit_new. You
+	* TODO: should modify the field after calling the uninit_new. */
 		
-		switch(type){
-			case VM_ANON:
-				uninit_new(page, upage, init, type, aux, anon_initializer);
-				break;
-			case VM_FILE:
-				uninit_new(page, upage, init, type, aux, file_backed_initializer);
-				break;
-			default:
-				NOT_REACHED();
-		}
-
-		/* TODO: Insert the page into the spt. */
-		spt_insert_page(spt, page);
+	switch(type){
+		case VM_ANON:
+			uninit_new(page, upage, init, type, aux, anon_initializer);
+			break;
+		case VM_FILE:
+			uninit_new(page, upage, init, type, aux, file_backed_initializer);
+			break;
+		default:
+			free(page);
+			NOT_REACHED();
+			return false;
 	}
+
+	page->is_stack = false;
+
+	/* TODO: Insert the page into the spt. */
+	if(!spt_insert_page(spt, page)) {
+		free(page);
+		return false;
+	}
+
+	return true;
+
 err:
 	return false;
 }
@@ -98,7 +114,6 @@ struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va
 }
 
 /* Insert PAGE into spt with validation. */
-/* [ Upt - LIB ] 2023.10.13 insert 추가  */
 bool spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
 	/* TODO: Fill this function. */;
 	page -> va = pg_round_down(page -> va);
@@ -245,7 +260,6 @@ static bool vm_do_claim_page (struct page *page) {
 }
 
 /* Initialize new supplemental page table */
-/* [ Upt - LIB ] 2023.10.13 init 추가 */
 void supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 	hash_init(&spt -> hash_table, page_hash, page_less, NULL);
 }

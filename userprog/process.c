@@ -793,17 +793,20 @@ static bool lazy_load_segment(struct page *page, void *aux) {
 
   struct lazy_load_info *load_info = (struct lazy_load_info*) aux;
   struct thread *cur = thread_current();
-  //FIXME - 다시 볼 것
-  void *kpage = page -> va;
+
+  void *upage = page->va;
+  void *kpage = page->frame->kva;
 
   file_seek(load_info -> file, load_info -> ofs);
 
   if(file_read(load_info -> file, kpage, load_info -> read_bytes) != (int)load_info -> read_bytes){
+    vm_dealloc_page(page);
     return false;
   }
 
   memset(kpage + load_info -> read_bytes, 0 , load_info -> zero_bytes);
-  pml4_set_page(cur -> pml4, page -> va, page -> frame -> kva, load_info -> writable);
+
+  return pml4_set_page(cur -> pml4, upage, kpage, load_info -> writable);
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -873,12 +876,13 @@ static bool setup_stack(struct intr_frame *if_) {
 
   kpage = palloc_get_page(PAL_USER | PAL_ZERO);
   if (kpage != NULL) {
-    success = (pml4_get_page(t->pml4, stack_bottom) == NULL &&
-          pml4_set_page(t->pml4, stack_bottom, kpage, true));
-    if (success)
+    success = (pml4_get_page(t->pml4, stack_bottom) == NULL && pml4_set_page(t->pml4, stack_bottom, kpage, true));
+    if (success) {
       if_->rsp = USER_STACK;
-    else
+      ((struct page *) kpage) -> is_stack = true;
+    } else {
       palloc_free_page(kpage);
+    }
   }
   return success;
 }
