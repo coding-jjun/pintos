@@ -116,8 +116,8 @@ struct page *spt_find_page (struct supplemental_page_table *spt UNUSED, void *va
 /* Insert PAGE into spt with validation. */
 bool spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
 	/* TODO: Fill this function. */;
-	page -> va = pg_round_down(page -> va);
-	return hash_insert(&spt -> hash_table, &page -> hash_elem) ? true : false;
+	// page -> va = pg_round_down(page -> va);
+	return hash_insert(&spt -> hash_table, &page -> hash_elem) == NULL;
 }
 
 /* [ Upt - LIB ] 2023.10.13 delete 추가  */
@@ -222,8 +222,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	if(page != NULL){
 	  return vm_do_claim_page(page);
 	} else {
-
-		return NULL;
+		return false;
 	}
 }
 
@@ -253,8 +252,6 @@ static bool vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	/* REVIEW - 위에 코드가 매핑 확인 없는 코드라서 insert는 해야하는거 같은데 */
-	// spt_insert_page(&thread_current() -> spt, page);
 
 	return swap_in(page, frame->kva);
 }
