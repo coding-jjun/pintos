@@ -4,7 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 
-/* [ Add - LIB ] 2023.10.13accessed bit 확인하기 위한 매크로 */
+/* [ Add - LIB ] 2023.10.13 accessed bit 확인하기 위한 매크로 */
 #include "include/threads/pte.h"
 
 struct list frame_table;
@@ -45,36 +45,47 @@ static struct frame *vm_evict_frame (void);
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
-bool
-vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
-		vm_initializer *init, void *aux) {
+/* [ Add - LIB ] 2023.10.14 함수 구현중 */
+bool vm_alloc_page_with_initializer (enum vm_type type, void *upage
+									, bool writable, vm_initializer *init, void *aux) {
 
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
 	struct thread *cur_t = thread_current();
 	struct supplemental_page_table *spt = &cur_t -> spt;
-	struct page *page = (struct page*) upage;
-
-	switch(type){
-		case VM_UNINIT:
-			uninit_initialize(page, page -> frame -> kva);
-			break;
-		case VM_ANON:
-			break;
-		case VM_FILE:
-			break;
-		case VM_PAGE_CACHE:
-			break;
-		default:
-	}
+	// struct page *page = (struct page*) upage;
+	// 밑에서 page랑 upage 인자로 따로 받는거 보면 다른 변수인듯
+	struct page *page = (struct page*) malloc(sizeof(struct page));
+	struct lazy_load_info *info = (struct lazy_load_info *) aux;
 
 	/* Check wheter the upage is already occupied or not. */
-	if (spt_find_page (spt, upage) == NULL) {
+	if(spt_find_page(spt, upage) == NULL) {
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
+		
+		switch(type){
+			// case VM_UNINIT:
+			// 컴파일 에러남 (initializer 함수는 없음 uninit.c에)
+			// uninit_new(page, upage, init, type, aux, uninit_initialize);
+			// break;
+			case VM_ANON:
+				uninit_new(page, upage, init, type, aux, anon_initializer);
+				break;
+			case VM_FILE:
+				uninit_new(page, upage, init, type, aux, file_backed_initializer);
+				break;
+			// case VM_PAGE_CACHE:
+			// 	break;
+			default:
+		}
+
+		// 이거 둘 세팅?
+		// page -> frame
+		// page -> va
 
 		/* TODO: Insert the page into the spt. */
+		spt_insert_page(spt, page);
 	}
 err:
 	return false;
@@ -142,8 +153,7 @@ static struct frame *vm_get_victim (void) {
 
 /* Evict one page and return the corresponding frame.
  * Return NULL on error.*/
-static struct frame *
-vm_evict_frame (void) {
+static struct frame *vm_evict_frame (void) {
 	struct frame *victim UNUSED = vm_get_victim ();
 
 	/* TODO: swap out the victim and return the evicted frame. */
@@ -230,6 +240,8 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	/* REVIEW - 위에 코드가 매핑 확인 없는 코드라서 insert는 해야하는거 같은데 */
+	spt_insert_page(&thread_current() -> spt, page); 
 
 	return swap_in (page, frame->kva);
 }

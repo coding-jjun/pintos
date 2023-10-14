@@ -3,6 +3,14 @@
 
 #include "threads/thread.h"
 
+struct lazy_load_info{
+    struct file *file;
+    off_t ofs;
+    unsigned int read_bytes;
+    unsigned int zero_bytes;
+    bool writable;
+};
+
 tid_t process_create_initd (const char *file_name);
 tid_t process_fork (const char *name, struct intr_frame *if_);
 int process_exec (void *f_name);

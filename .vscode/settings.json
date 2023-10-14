@@ -25,6 +25,7 @@
         "syscall.h": "c",
         "file.h": "c",
         "synch.h": "c",
-        "page_cache.h": "c"
+        "page_cache.h": "c",
+        "pte.h": "c"
     }
 }
