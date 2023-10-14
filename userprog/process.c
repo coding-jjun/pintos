@@ -868,6 +868,18 @@ static bool setup_stack(struct intr_frame *if_) {
    * TODO: You should mark the page is stack. */
   /* TODO: Your code goes here */
 
+  uint8_t *kpage;
+  struct thread *t = thread_current();
+
+  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  if (kpage != NULL) {
+    success = (pml4_get_page(t->pml4, stack_bottom) == NULL &&
+          pml4_set_page(t->pml4, stack_bottom, kpage, true));
+    if (success)
+      if_->rsp = USER_STACK;
+    else
+      palloc_free_page(kpage);
+  }
   return success;
 }
 #endif /* VM */

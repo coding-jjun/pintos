@@ -1,4 +1,4 @@
-ARGS_NONE="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/args-none:args-none --swap-disk=4 -- -q   -f run args-none"
+ARGS_NONE="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/args-none:args-none --swap-disk=4 --gdb -- -q   -f run args-none"
 ARGS_SINGLE="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/args-single:args-single --swap-disk=4 -- -q   -f run 'args-single onearg'"
 ARGS_MULTIPL="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/args-multiple:args-multiple --swap-disk=4 -- -q   -f run 'args-multiple some arguments for you!'"
 ARGS_MANY="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/userprog/args-many:args-many --swap-disk=4 -- -q   -f run 'args-many a b c d e f g h i j k l m n o p q r s t u v'"
