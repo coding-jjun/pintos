@@ -17,6 +17,7 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init(&frame_table);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -44,8 +45,8 @@ bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *au
 bool insert_page (struct hash *spt_hash, struct page *p);
 bool delete_page (struct hash *spt_hash, struct page *p);
 
-struct list frame_table;
 struct list_elem *evict_start;
+struct list frame_table;
 
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
@@ -64,17 +65,19 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		 * TODO: should modify the field after calling the uninit_new. */
 		/* TODO: Insert the page into the spt. */
 		struct page *page = (struct page *)malloc(sizeof(struct page));
+		typedef bool (*initializer_func) (struct page *, enum vm_type, void *);
+		initializer_func initializer = NULL;
 		switch (type) {
 		case VM_ANON:
-			uninit_new(page, upage, init, type, aux, anon_initializer);
+			initializer = anon_initializer;
 			break;
 		case VM_FILE:
-			uninit_new(page, upage, init, type, aux, file_backed_initializer);
+			initializer = file_backed_initializer;
 			break;
-		// default:
-		// 	break;
+		default:
+			break;
 		}
-
+		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
 
 		return spt_insert_page(spt, page);
@@ -91,10 +94,13 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct hash_elem *e;
 	page->va = pg_round_down(va);  // va가 가리키는 가상 page의 시작 포인트 반환
 	e = hash_find(&spt->spt_hash, &page->h_elem);  // hash에서 hash_elem과 같은 요소를 검색해서 발견하면 발견한 hash elem 반환, 아니면 NULL반환
-
+	// if (e == NULL) {
+	// 	printf("hash_find 실패\n");
+	// }
 	free(page);  // hash elem을 찾기 위해 생성한 dummy page 해제
 
 	return e != NULL ? h_elem_to_page(e) : NULL;
+	// return e != NULL ? hash_entry(e, struct page, h_elem) : NULL;
 }
 
 /* Insert PAGE into spt with validation. */
@@ -189,7 +195,7 @@ bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
-	struct page *page = NULL;
+	struct page *page;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
 	page = spt_find_page(spt, addr);
@@ -211,9 +217,8 @@ vm_dealloc_page (struct page *page) {
 /* Claim the page that allocate on VA. */
 bool
 vm_claim_page (void *va UNUSED) {
-	struct page *page = NULL;
+	struct page *page;
 	/* TODO: Fill this function */
-	va = pg_round_down(va);
 	page = spt_find_page(&thread_current()->spt, va);
 	if (page == NULL) {
 		printf("spt_find 실패\n");
@@ -294,8 +299,10 @@ page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNU
 bool
 insert_page (struct hash *spt_hash, struct page *p) {
 	if (!hash_insert(spt_hash, &p->h_elem)) {
+		// printf("spt insert 성공\n");
 		return true;
 	} else {
+		// printf("spt insert 실패\n");
 		return false;
 	}
 }

@@ -518,20 +518,19 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   /* Allocate and activate page directory. */
   t->pml4 = pml4_create();
   if (t->pml4 == NULL) {
-    printf("pml4 생성 실패\n");
     goto done;
   }
   process_activate(thread_current());
 
-  // if (t->running != NULL) {
-  //   file_close(t->running);
-  //   t->running = NULL;
-  // }
+  if (t->running != NULL) {
+    file_close(t->running);
+    t->running = NULL;
+  }
 
   /* Open executable file. */
   file = filesys_open(file_name);
   if (file == NULL) {
-    // file_close(file);
+    file_close(file);
     printf("load: %s: open failed\n", file_name);
     goto done;
   }
@@ -600,10 +599,8 @@ static bool load(const char *file_name, struct intr_frame *if_) {
           read_bytes = 0;
           zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
         }
-        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable)) {
-          printf("load_seg 실패\n");
+        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable))
           goto done;
-        }
       } else
         goto done;
       break;
@@ -879,9 +876,10 @@ static bool setup_stack(struct intr_frame *if_) {
       if_->rsp = USER_STACK;
       thread_current()->stack_bottom = stack_bottom;
     }
+  }
+  if (!success) {
     printf("vm_claim 실패\n");
   }
-
   return success;
 }
 #endif /* VM */
