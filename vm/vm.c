@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "threads/vaddr.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -37,7 +38,8 @@ static struct frame *vm_get_victim (void);
 static bool vm_do_claim_page (struct page *page);
 static struct frame *vm_evict_frame (void);
 unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED);
-struct page *h_elem_to_page(const struct hash_elem *h_elem);
+struct page *h_elem_to_page(struct hash_elem *h_elem);
+struct frame *elem_to_frame(struct list_elem *elem);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 bool insert_page (struct hash *spt_hash, struct page *p);
 bool delete_page (struct hash *spt_hash, struct page *p);
@@ -84,7 +86,6 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
 	/* TODO: Fill this function. */
 	struct page *page  = (struct page *)malloc(sizeof(struct page));  // dummy page 생성
 	struct hash_elem *e;
@@ -154,7 +155,6 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
 	struct frame *frame = (struct frame *)malloc(sizeof(struct frame));
 	frame->kva = palloc_get_page(PAL_USER);
@@ -256,7 +256,8 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 }
 
 // SECTION - Project 3 VM
-static bool install_page(void *upage, void *kpage, bool writable) {
+bool
+install_page(void *upage, void *kpage, bool writable) {
   struct thread *t = thread_current();
 
   /* Verify that there's not already a page at that virtual
@@ -264,17 +265,18 @@ static bool install_page(void *upage, void *kpage, bool writable) {
   return (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable));
 }
 
-unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED) {
+unsigned
+page_hash(const struct hash_elem *p_, void *aux UNUSED) {
 	const struct page *p = h_elem_to_page(p_);
 	return hash_bytes(&p->va, sizeof(p->va));
 }
 
-struct page *h_elem_to_page(const struct hash_elem *h_elem) {
-	return hash_entry(h_elem, struct page, h_elem);
+struct page *h_elem_to_page(struct hash_elem *hash_elem) {
+	return hash_entry(hash_elem, struct page, h_elem);
 }
 
-struct frame *elem_to_frame(const struct list_elem *f_elem) {
-	return list_entry(f_elem, struct frame, f_elem);
+struct frame *elem_to_frame(struct list_elem *elem) {
+	return list_entry(elem, struct frame, f_elem);
 }
 
 bool
