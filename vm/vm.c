@@ -213,8 +213,10 @@ bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
+	va = pg_round_down(va);
 	page = spt_find_page(&thread_current()->spt, va);
-	if (page == NULL){
+	if (page == NULL) {
+		printf("spt_find 실패\n");
 		return false;
 	}
 	return vm_do_claim_page (page);
@@ -231,8 +233,10 @@ vm_do_claim_page (struct page *page) {
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
     if(install_page(page->va, frame->kva, page->writable)){
+		printf("install page 성공\n");
         return swap_in(page, frame->kva);
     }
+	printf("install page 실패\n");
     return false;
 }
 

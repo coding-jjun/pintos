@@ -261,6 +261,7 @@ int process_exec(void *f_name) {
   /* 이후에 바이너리 파일 로드 */
   success = load(argv[0], &_if);
   if (!success) {
+    printf("로드 실패\n");
     palloc_free_page(file_copy);
     return -1;
   }
@@ -516,22 +517,25 @@ static bool load(const char *file_name, struct intr_frame *if_) {
 
   /* Allocate and activate page directory. */
   t->pml4 = pml4_create();
-  if (t->pml4 == NULL)
+  if (t->pml4 == NULL) {
+    printf("pml4 생성 실패\n");
     goto done;
+  }
   process_activate(thread_current());
 
-  if (t->running != NULL) {
-    file_close(t->running);
-    t->running = NULL;
-  }
+  // if (t->running != NULL) {
+  //   file_close(t->running);
+  //   t->running = NULL;
+  // }
 
   /* Open executable file. */
   file = filesys_open(file_name);
   if (file == NULL) {
-    file_close(file);
+    // file_close(file);
     printf("load: %s: open failed\n", file_name);
     goto done;
   }
+  printf("파일 오픈 성공\n");
 
   t->running = file;
   file_deny_write(file); // 실행 중인 파일은 수정할 수 없다.
@@ -596,9 +600,10 @@ static bool load(const char *file_name, struct intr_frame *if_) {
           read_bytes = 0;
           zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
         }
-        if (!load_segment(file, file_page, (void *)mem_page, read_bytes,
-                          zero_bytes, writable))
+        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable)) {
+          printf("load_seg 실패\n");
           goto done;
+        }
       } else
         goto done;
       break;
@@ -606,8 +611,10 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   }
 
   /* Set up stack. */
-  if (!setup_stack(if_))
+  if (!setup_stack(if_)) {
+    printf("setup_stack 실패\n");
     goto done;
+  }
 
   /* Start address. */
   if_->rip = ehdr.e_entry;
@@ -797,7 +804,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
 
   file_seek(file, ofs);
   if (file_read(file, kpage, read_bytes) != (int)read_bytes) {
-    vm_dealloc_page(kpage);
+    palloc_free_page(page->frame->kva);
     return false;
   }
 
@@ -872,6 +879,7 @@ static bool setup_stack(struct intr_frame *if_) {
       if_->rsp = USER_STACK;
       thread_current()->stack_bottom = stack_bottom;
     }
+    printf("vm_claim 실패\n");
   }
 
   return success;
