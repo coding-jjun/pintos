@@ -48,7 +48,6 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
-	bool is_stack;
 	bool writable;
 	struct hash_elem h_elem;
 

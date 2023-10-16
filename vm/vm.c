@@ -4,6 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "threads/vaddr.h"
+#include "userprog/process.h"
 
 struct list_elem *evict_start;
 struct list frame_table;
@@ -27,6 +28,7 @@ vm_init (void) {
 /* Get the type of the page. This function is useful if you want to know the
  * type of the page after it will be initialized.
  * This function is fully implemented now. */
+/* FIXME - anon_page, file_backed_page 완성 후 수정하기 */
 enum vm_type
 page_get_type (struct page *page) {
 	int ty = VM_TYPE (page->operations->type);
@@ -68,7 +70,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		struct page *page = (struct page *)malloc(sizeof(struct page));
 		typedef bool (*initializer_func) (struct page *, enum vm_type, void *);
 		initializer_func initializer = NULL;
-		switch (type) {
+		switch (VM_TYPE(type)) {
 		case VM_ANON:
 			initializer = anon_initializer;
 			break;
@@ -251,8 +253,37 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 
 /* Copy supplemental page table from src to dst */
 bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {
+	/* TODO: copy the supplemental page table for fork */
+	struct hash_iterator i;
+	hash_first(&i, &src->spt_hash);
+	while(hash_next(&i)) {
+		struct page *parent_page = h_elem_to_page(hash_cur(&i));
+		// FIXME: 각 타입의 page type에 맞는 struct 완성시 조건문에 type 활용
+		enum vm_type type = page_get_type(parent_page);
+		void *upage = parent_page->va;
+		bool writable = parent_page->writable;
+
+		if (parent_page->uninit.type & VM_MARKER_0) {  // stack page인 경우
+			setup_stack(&thread_current()->tf);
+		} else if (parent_page->operations->type == VM_UNINIT) {  // uninit page인 경우
+			vm_initializer *initializer = parent_page->uninit.init;
+			void *aux = parent_page->uninit.aux;
+			if (!vm_alloc_page_with_initializer(type, upage, writable, initializer, aux)) {
+				return false;
+			}
+		} else {  // uninit page가 아닌 경우, page 할당 후 바로 mapping
+			if (!vm_alloc_page(type, upage, writable)) {
+				return false;
+			}
+			if (vm_claim_page(upage)) {
+				return false;
+			}
+			struct page *child_page = spt_find_page(dst, upage);
+			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);  // mapping된 frame에 부모의 frame 내용 복사
+		}
+	}
+	return true;
 }
 
 /* Free the resource hold by the supplemental page table */

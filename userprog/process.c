@@ -185,9 +185,7 @@ static void __do_fork(void *aux) {
   if (!pml4_for_each(parent->pml4, duplicate_pte, parent))
     goto error;
 #endif
-
-  /* TODO: File Descriptor Table 복제
-   * Hint) To duplicate the file object, use `file_duplicate`
+  /* Hint) To duplicate the file object, use `file_duplicate`
    *       in include/filesys/file.h. Note that parent should not return
    *       from the fork() until this function successfully duplicates
    *       the resources of parent.
@@ -270,37 +268,7 @@ int process_exec(void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
-  // struct thread *curr = thread_current();
-  // struct thread *child_th;
-  // struct list *c_list = &curr->child_list;  // 호적
-  // struct list_elem *e;
   struct child_info *ch_info;
-  // bool is_child = false;  // 받은 주민번호가 내 자식의 것이 맞는가
-
-  /* 호적을 순회하며 내 자식의 주민번호인지 확인 */
-  // if (!list_empty(c_list)) {  // 자식이 존재한다면
-  //   for (e = list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
-  //     ch_info = list_entry(e, struct child_info, c_elem);  // 자식의 유서
-  //     if (child_tid == ch_info->pid) {  // 기다리려는 자식이 맞다면
-  //       child_th = ch_info->th;  // 자식의 thread
-  //       is_child = true;  // 내 자식이 맞다!
-  //       break;
-  //     }
-  //   }
-  // }
-  // if (is_child) {  // 기다리려는 자식이 내 자식이 맞는 경우
-  //   bool exited = ch_info->exited;
-  //   if (exited == 0) {  // 자식이 아직 살아있다면
-  //     sema_down(&child_th->wait_sema);  // 자식이 죽을 때까지 기다림
-  //   }
-
-  //   int child_status = ch_info->exit_status;  // 자식의 사망 원인 조사
-  //   list_remove(e);  // 호적에서 제거
-  //   free(ch_info);  // 주민등록 말소 (사망신고 처리)
-  //   return child_status;
-  // } else {  // 기다리려는 자식이 내 자식이 아닌 경우
-  //   return -1;
-  // }
   
   if ((ch_info = tid_to_child_info(child_tid)) != NULL) {
     bool exited = ch_info->exited;
@@ -482,7 +450,7 @@ struct ELF64_PHDR {
 #define ELF ELF64_hdr
 #define Phdr ELF64_PHDR
 
-static bool setup_stack(struct intr_frame *if_);
+bool setup_stack(struct intr_frame *if_);
 static bool validate_segment(const struct Phdr *, struct file *);
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
@@ -732,7 +700,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a minimal stack by mapping a zeroed page at the USER_STACK */
-static bool setup_stack(struct intr_frame *if_) {
+bool setup_stack(struct intr_frame *if_) {
   uint8_t *kpage;
   bool success = false;
 
@@ -765,6 +733,7 @@ static bool install_page(void *upage, void *kpage, bool writable) {
           pml4_set_page(t->pml4, upage, kpage, writable));
 }
 #else
+
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
@@ -845,7 +814,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
-static bool setup_stack(struct intr_frame *if_) {
+bool setup_stack(struct intr_frame *if_) {
   bool success = false;
   void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
 
@@ -853,7 +822,7 @@ static bool setup_stack(struct intr_frame *if_) {
    * TODO: If success, set the rsp accordingly.
    * TODO: You should mark the page is stack. */
   /* TODO: Your code goes here */
-  if (vm_alloc_page(VM_ANON, stack_bottom, 1)) {
+  if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)) {
     success = vm_claim_page(stack_bottom);
     if (success) {
       if_->rsp = USER_STACK;
