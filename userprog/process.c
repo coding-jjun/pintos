@@ -89,18 +89,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED) {
   if (tid == TID_ERROR) {  // 자식이 create가 되지 않은 경우
     return TID_ERROR;
   }
-  // cur(부모)의 child_list에 위에서 create한 자식의 child_info의 c_elem이 들어가있다.
-  // 방금 추가된 child_info를 tid로 찾는다.
-  // 찾은 tid로 방금 생성된 thread를 찾는다.
-  // 방금 생성된 thread의 fork_sema를 sema_down한다.
-  // for (e = list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
-  //   ch_info = list_entry(e, struct child_info, c_elem);  // 자식의 유서
-  //   if (tid == ch_info->pid) {  // 기다리려는 자식이 맞다면
-  //     child_th = ch_info->th;  // 자식의 thread// 내 자식이 맞다!
-  //     sema_down(&child_th->fork_sema);
-  //     break;
-  //   }
-  // }
+
   ch_info = tid_to_child_info(tid);
   child_th = ch_info->th;
   sema_down(&child_th->fork_sema);
@@ -203,9 +192,6 @@ static void __do_fork(void *aux) {
    *       from the fork() until this function successfully duplicates
    *       the resources of parent.
    */
-  // 파일을 읽지 못한다는 이유로 처형하는 코드 삭제
-  // if (parent->fd_idx == FDCOUNT_LIMIT)
-  //   goto error;
 
   for (int i = 2; i < FDCOUNT_LIMIT; i++) {
     if (parent->fd_table[i] != NULL) {
@@ -261,7 +247,6 @@ int process_exec(void *f_name) {
   /* 이후에 바이너리 파일 로드 */
   success = load(argv[0], &_if);
   if (!success) {
-    printf("로드 실패\n");
     palloc_free_page(file_copy);
     return -1;
   }
@@ -534,7 +519,6 @@ static bool load(const char *file_name, struct intr_frame *if_) {
     printf("load: %s: open failed\n", file_name);
     goto done;
   }
-  printf("파일 오픈 성공\n");
 
   t->running = file;
   file_deny_write(file); // 실행 중인 파일은 수정할 수 없다.
@@ -609,7 +593,6 @@ static bool load(const char *file_name, struct intr_frame *if_) {
 
   /* Set up stack. */
   if (!setup_stack(if_)) {
-    printf("setup_stack 실패\n");
     goto done;
   }
 
@@ -870,7 +853,7 @@ static bool setup_stack(struct intr_frame *if_) {
    * TODO: If success, set the rsp accordingly.
    * TODO: You should mark the page is stack. */
   /* TODO: Your code goes here */
-  if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)) {
+  if (vm_alloc_page(VM_ANON, stack_bottom, 1)) {
     success = vm_claim_page(stack_bottom);
     if (success) {
       if_->rsp = USER_STACK;

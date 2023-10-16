@@ -5,6 +5,10 @@
 #include "vm/inspect.h"
 #include "threads/vaddr.h"
 
+struct list_elem *evict_start;
+struct list frame_table;
+
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -44,9 +48,6 @@ struct frame *elem_to_frame(struct list_elem *elem);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 bool insert_page (struct hash *spt_hash, struct page *p);
 bool delete_page (struct hash *spt_hash, struct page *p);
-
-struct list_elem *evict_start;
-struct list frame_table;
 
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
@@ -221,7 +222,6 @@ vm_claim_page (void *va UNUSED) {
 	/* TODO: Fill this function */
 	page = spt_find_page(&thread_current()->spt, va);
 	if (page == NULL) {
-		printf("spt_find 실패\n");
 		return false;
 	}
 	return vm_do_claim_page (page);
@@ -238,10 +238,8 @@ vm_do_claim_page (struct page *page) {
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
     if(install_page(page->va, frame->kva, page->writable)){
-		printf("install page 성공\n");
         return swap_in(page, frame->kva);
     }
-	printf("install page 실패\n");
     return false;
 }
 
@@ -299,10 +297,8 @@ page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNU
 bool
 insert_page (struct hash *spt_hash, struct page *p) {
 	if (!hash_insert(spt_hash, &p->h_elem)) {
-		// printf("spt insert 성공\n");
 		return true;
 	} else {
-		// printf("spt insert 실패\n");
 		return false;
 	}
 }
