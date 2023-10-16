@@ -276,9 +276,11 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 			if (!vm_alloc_page(type, upage, writable)) {
 				return false;
 			}
-			if (vm_claim_page(upage)) {
+			if (!vm_claim_page(upage)) {
 				return false;
 			}
+		}
+		if (parent_page->operations->type != VM_UNINIT) {
 			struct page *child_page = spt_find_page(dst, upage);
 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);  // mapping된 frame에 부모의 frame 내용 복사
 		}

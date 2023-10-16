@@ -146,4 +146,4 @@ make clean
 make -j
 cd build
 
-$ARGS_NONE
+$FORK_ONCE
