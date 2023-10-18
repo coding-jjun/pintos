@@ -137,7 +137,7 @@ void syscall_handler(struct intr_frame *f UNUSED) {
       f->R.rax = filesize(f->R.rdi);
       break;
     case SYS_READ:
-      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 0);
+      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = read(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_WRITE:
