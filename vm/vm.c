@@ -68,8 +68,8 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		 * TODO: should modify the field after calling the uninit_new. */
 		/* TODO: Insert the page into the spt. */
 		struct page *page = (struct page *)malloc(sizeof(struct page));
-		typedef bool (*initializer_func) (struct page *, enum vm_type, void *);
-		initializer_func initializer = NULL;
+		vm_initializer *initializer;
+		
 		switch (VM_TYPE(type)) {
 		case VM_ANON:
 			initializer = anon_initializer;
@@ -186,6 +186,10 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	if(vm_alloc_page(VM_ANON | VM_MARKER_0, addr, 1)){
+        vm_claim_page(addr);
+        thread_current()->stack_bottom -= PGSIZE;
+    }
 }
 
 /* Handle the fault on write_protected page */
@@ -195,18 +199,27 @@ vm_handle_wp (struct page *page UNUSED) {
 
 /* Return true on success */
 bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
+vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
 	struct page *page;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-	page = spt_find_page(spt, addr);
-	if (page == NULL) {
+	if(is_kernel_vaddr(addr)){
 		return false;
 	}
 
-	return vm_do_claim_page (page);
+	// stack pointer를 가져오는 방법(아까 thread 구조체에 저장했던 이유가 여기나옴)
+	void *rsp_stack = is_kernel_vaddr(f->rsp) ? thread_current()->rsp_stack : f->rsp;
+
+	if(not_present){ // 0: not-present page. 1: access rights violation.
+			if(!vm_claim_page(addr)){
+					if(rsp_stack - 8 <= addr && USER_STACK - 0x100000 <= addr && addr <= USER_STACK){
+							vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
+							return true;
+					}
+			} else return true;
+	}
+	return false;
 }
 
 /* Free the page.
@@ -273,13 +286,11 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 				return false;
 			}
 		} else {  // uninit page가 아닌 경우, page 할당 후 바로 mapping
-			if (!vm_alloc_page(type, upage, writable)) {
-				return false;
-			}
-			if (!vm_claim_page(upage)) {
+			if (!vm_alloc_page(type, upage, writable) || !vm_claim_page(upage)) {
 				return false;
 			}
 		}
+
 		if (parent_page->operations->type != VM_UNINIT) {
 			struct page *child_page = spt_find_page(dst, upage);
 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);  // mapping된 frame에 부모의 frame 내용 복사
@@ -293,6 +304,12 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+		hash_clear(&spt->spt_hash, spt_destructor);
+}
+
+void spt_destructor(struct hash_elem *e, void* aux){
+    const struct page *p = h_elem_to_page(e);
+    free(p);
 }
 
 // SECTION - Project 3 VM

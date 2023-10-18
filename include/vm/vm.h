@@ -124,5 +124,6 @@ bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
 
 bool install_page(void *upage, void *kpage, bool writable);
+void spt_destructor(struct hash_elem *e, void* aux);
 
 #endif  /* VM_VM_H */
