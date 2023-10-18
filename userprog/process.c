@@ -23,7 +23,6 @@
 #include <string.h>
 
 #ifdef VM
-// #include "process.h"
 #include "vm/vm.h"
 #endif
 
@@ -90,18 +89,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED) {
   if (tid == TID_ERROR) {  // 자식이 create가 되지 않은 경우
     return TID_ERROR;
   }
-  // cur(부모)의 child_list에 위에서 create한 자식의 child_info의 c_elem이 들어가있다.
-  // 방금 추가된 child_info를 tid로 찾는다.
-  // 찾은 tid로 방금 생성된 thread를 찾는다.
-  // 방금 생성된 thread의 fork_sema를 sema_down한다.
-  // for (e = list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
-  //   ch_info = list_entry(e, struct child_info, c_elem);  // 자식의 유서
-  //   if (tid == ch_info->pid) {  // 기다리려는 자식이 맞다면
-  //     child_th = ch_info->th;  // 자식의 thread// 내 자식이 맞다!
-  //     sema_down(&child_th->fork_sema);
-  //     break;
-  //   }
-  // }
+
   ch_info = tid_to_child_info(tid);
   child_th = ch_info->th;
   sema_down(&child_th->fork_sema);
@@ -188,6 +176,8 @@ static void __do_fork(void *aux) {
     goto error;
 
   process_activate(current);
+  current->running = file_duplicate(parent->running);
+
 #ifdef VM
   supplemental_page_table_init(&current->spt);
   if (!supplemental_page_table_copy(&current->spt, &parent->spt))
@@ -197,16 +187,11 @@ static void __do_fork(void *aux) {
   if (!pml4_for_each(parent->pml4, duplicate_pte, parent))
     goto error;
 #endif
-
-  /* TODO: File Descriptor Table 복제
-   * Hint) To duplicate the file object, use `file_duplicate`
+  /* Hint) To duplicate the file object, use `file_duplicate`
    *       in include/filesys/file.h. Note that parent should not return
    *       from the fork() until this function successfully duplicates
    *       the resources of parent.
    */
-  // 파일을 읽지 못한다는 이유로 처형하는 코드 삭제
-  // if (parent->fd_idx == FDCOUNT_LIMIT)
-  //   goto error;
 
   for (int i = 2; i < FDCOUNT_LIMIT; i++) {
     if (parent->fd_table[i] != NULL) {
@@ -237,7 +222,7 @@ int process_exec(void *f_name) {
   char *file_copy = f_name;
   bool success;
   int i;
-  char *argv[128] = {
+  char *argv[128] = { // 배열 0으로 초기화
       0,
   };
   char *token, *save_ptr; // token화 하기 위한 변수
@@ -285,37 +270,7 @@ int process_exec(void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
-  // struct thread *curr = thread_current();
-  // struct thread *child_th;
-  // struct list *c_list = &curr->child_list;  // 호적
-  // struct list_elem *e;
   struct child_info *ch_info;
-  // bool is_child = false;  // 받은 주민번호가 내 자식의 것이 맞는가
-
-  /* 호적을 순회하며 내 자식의 주민번호인지 확인 */
-  // if (!list_empty(c_list)) {  // 자식이 존재한다면
-  //   for (e = list_begin(c_list); e != list_end(c_list); e = list_next(e)) {
-  //     ch_info = list_entry(e, struct child_info, c_elem);  // 자식의 유서
-  //     if (child_tid == ch_info->pid) {  // 기다리려는 자식이 맞다면
-  //       child_th = ch_info->th;  // 자식의 thread
-  //       is_child = true;  // 내 자식이 맞다!
-  //       break;
-  //     }
-  //   }
-  // }
-  // if (is_child) {  // 기다리려는 자식이 내 자식이 맞는 경우
-  //   bool exited = ch_info->exited;
-  //   if (exited == 0) {  // 자식이 아직 살아있다면
-  //     sema_down(&child_th->wait_sema);  // 자식이 죽을 때까지 기다림
-  //   }
-
-  //   int child_status = ch_info->exit_status;  // 자식의 사망 원인 조사
-  //   list_remove(e);  // 호적에서 제거
-  //   free(ch_info);  // 주민등록 말소 (사망신고 처리)
-  //   return child_status;
-  // } else {  // 기다리려는 자식이 내 자식이 아닌 경우
-  //   return -1;
-  // }
   
   if ((ch_info = tid_to_child_info(child_tid)) != NULL) {
     bool exited = ch_info->exited;  //죽었는지 안죽었는지, 안죽었으면 기다려야함
@@ -497,7 +452,7 @@ struct ELF64_PHDR {
 #define ELF ELF64_hdr
 #define Phdr ELF64_PHDR
 
-static bool setup_stack(struct intr_frame *if_);
+bool setup_stack(struct intr_frame *if_);
 static bool validate_segment(const struct Phdr *, struct file *);
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
@@ -517,8 +472,9 @@ static bool load(const char *file_name, struct intr_frame *if_) {
 
   /* Allocate and activate page directory. */
   t->pml4 = pml4_create();
-  if (t->pml4 == NULL)
+  if (t->pml4 == NULL) {
     goto done;
+  }
   process_activate(thread_current());
 
   if (t->running != NULL) {
@@ -597,8 +553,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
           read_bytes = 0;
           zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
         }
-        if (!load_segment(file, file_page, (void *)mem_page, read_bytes,
-                          zero_bytes, writable))
+        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable))
           goto done;
       } else
         goto done;
@@ -607,8 +562,9 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   }
 
   /* Set up stack. */
-  if (!setup_stack(if_))
+  if (!setup_stack(if_)) {
     goto done;
+  }
 
   /* Start address. */
   if_->rip = ehdr.e_entry;
@@ -746,7 +702,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a minimal stack by mapping a zeroed page at the USER_STACK */
-static bool setup_stack(struct intr_frame *if_) {
+bool setup_stack(struct intr_frame *if_) {
   uint8_t *kpage;
   bool success = false;
 
@@ -779,14 +735,32 @@ static bool install_page(void *upage, void *kpage, bool writable) {
           pml4_set_page(t->pml4, upage, kpage, writable));
 }
 #else
+
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-
 static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
+  struct lazy_load_info *load_info = (struct lazy_load_info *)aux;
+  struct file *file = load_info->file;
+  off_t ofs = load_info->ofs;
+  size_t read_bytes = load_info->read_bytes;
+  size_t zero_bytes = load_info->zero_bytes;
+  free(load_info);
+  
+  void *upage = page->va;
+  void *kpage = page->frame->kva;
+
+  file_seek(file, ofs);
+  if (file_read(file, kpage, read_bytes) != (int)read_bytes) {
+    palloc_free_page(page->frame->kva);
+    return false;
+  }
+
+  memset(kpage + read_bytes, 0, zero_bytes);
+  return true;
 }
 
 /* 주소 UPAGE에 파일의 OFS 오프셋에서 시작하는 세그먼트를 로드합니다.
@@ -814,21 +788,31 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
     /* TODO: Set up aux to pass information to the lazy_load_segment. */
-    void *aux = NULL;
-    if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable,
-                                        lazy_load_segment, aux))
+    struct lazy_load_info *aux = malloc(sizeof(struct lazy_load_info));
+    if (!aux) {
       return false;
+    }
 
+    aux->file = file;
+    aux->ofs = ofs;
+    aux->read_bytes = page_read_bytes;
+    aux->zero_bytes = page_zero_bytes;
+    aux->writable = writable;
+
+    if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux)) {
+      return false;
+    }
     /* Advance. */
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
     upage += PGSIZE;
+    ofs += page_read_bytes;
   }
   return true;
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
-static bool setup_stack(struct intr_frame *if_) {
+bool setup_stack(struct intr_frame *if_) {
   bool success = false;
   void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
 
@@ -836,7 +820,16 @@ static bool setup_stack(struct intr_frame *if_) {
    * TODO: If success, set the rsp accordingly.
    * TODO: You should mark the page is stack. */
   /* TODO: Your code goes here */
-
+  if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)) {
+    success = vm_claim_page(stack_bottom);
+    if (success) {
+      if_->rsp = USER_STACK;
+      thread_current()->stack_bottom = stack_bottom;
+    }
+  }
+  if (!success) {
+    printf("vm_claim 실패\n");
+  }
   return success;
 }
 #endif /* VM */

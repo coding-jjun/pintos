@@ -136,8 +136,8 @@ struct thread {
 #ifdef VM
   /* Table for whole virtual memory owned by thread. */
   struct supplemental_page_table spt;
-  /*이 부분은 이야기 해보고 추후 수정*/
-  void *va;             /*process마다 page table 가상 주소를 가지고 있어야됨(?)*/
+  void *stack_bottom;
+  void *rsp_stack;
 #endif
 
   /* Owned by thread.c. */

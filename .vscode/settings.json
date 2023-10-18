@@ -25,9 +25,6 @@
         "syscall.h": "c",
         "file.h": "c",
         "synch.h": "c",
-        "hash.h": "c",
-        "stdlib.h": "c",
-        "intr-stubs.h": "c",
         "thread.h": "c"
     }
 }

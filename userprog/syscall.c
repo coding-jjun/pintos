@@ -35,7 +35,8 @@
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
 
 
-void check_address(const void*);
+struct page * check_address(void *addr);
+void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write);
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
 
@@ -71,10 +72,21 @@ int dup2(int oldfd, int newfd);
  * @return 주소가 유효한지 여부
  * @note 해당 함수는 유저 프로그램을 종료시켜줍니다.
  */
-void check_address(const void *uaddr) {
-  if (is_kernel_vaddr(uaddr) || pml4_get_page(thread_current()->pml4, uaddr) == NULL) {
-		exit(-1);
-  } 
+struct page * check_address(void *addr){
+    if(is_kernel_vaddr(addr)){
+        exit(-1);
+    }
+    return spt_find_page(&thread_current()->spt,addr);
+}
+
+void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write){
+    for(int i = 0; i < size; i++){
+      struct page* page = check_address(buffer + i);
+      
+      if(page == NULL || (to_write == true && page->writable == false)){
+        exit(-1);
+      }
+    }
 }
 
 void syscall_init(void) {
@@ -92,6 +104,9 @@ void syscall_init(void) {
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED) {
   // TODO: Your implementation goes here.
+  #ifdef VM
+    thread_current()->rsp_stack = f->rsp; 
+  #endif
   switch (f->R.rax) {
     case SYS_HALT:
       halt();
@@ -122,9 +137,11 @@ void syscall_handler(struct intr_frame *f UNUSED) {
       f->R.rax = filesize(f->R.rdi);
       break;
     case SYS_READ:
+      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = read(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_WRITE:
+      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = write(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_SEEK:
@@ -170,7 +187,9 @@ void exit(int status) {
  * @return pid_t negative if errr occured, else positive number
  */
 pid_t fork(const char *thread_name) {
-  check_address(thread_name);
+  if(check_address(thread_name) == NULL){
+      exit(-1);
+  }
   return process_fork(thread_name, NULL);
 }
 
@@ -180,7 +199,9 @@ pid_t fork(const char *thread_name) {
  * @return int 실행 성공(1)/실패(0) 여부를 반환한다.
  */
 int exec(const char *file) {
-  check_address(file);
+  if(check_address(file) == NULL){
+      exit(-1);
+  }
 
   uint8_t *page;
   if((page = palloc_get_page(PAL_USER)) == NULL) {
@@ -208,7 +229,9 @@ int wait(pid_t pid) {
  * @brief 파일을 생성하는 system call, 생성 성공 여부를 bool로 반환한다.
  */
 bool create(const char *file, unsigned initial_size) {
-  check_address(file);
+  if(check_address(file) == NULL){
+      exit(-1);
+  }
   return filesys_create(file, initial_size);
 }
 
@@ -216,7 +239,9 @@ bool create(const char *file, unsigned initial_size) {
  * @brief 파일을 삭제하는 system call, 삭제 성공 여부를 bool로 반환한다.
  */
 bool remove(const char *file) {
-  check_address(file);
+  if(check_address(file) == NULL){
+      exit(-1);
+  }
   return filesys_remove(file);
 }
 
@@ -224,7 +249,9 @@ bool remove(const char *file) {
  * @brief 파일을 여는 system call
  */
 int open(const char *file) {
-  check_address(file);
+  if(check_address(file) == NULL){
+      exit(-1);
+  }
   struct thread *t = thread_current();
   struct file *file_obj = filesys_open(file);
   if (file_obj == NULL) {
@@ -293,7 +320,6 @@ struct file *fd_to_file(int fd) {
  * @brief 파일을 읽는 system call, 읽은 byte 수를 반환
  */
 int read(int fd, void *buffer, unsigned size) {
-  check_address(buffer);
   uint8_t *buf = buffer;
   off_t read_count;
 
@@ -313,11 +339,15 @@ int read(int fd, void *buffer, unsigned size) {
     if (filep == NULL) { // 파일을 읽을 수 없는 경우
       return -1;
     }
-
     // exclusive read & write
     lock_acquire(inode_get_lock(file_get_inode(filep))); 
+    // printf("lock 획득 성공\n");
+    // printf("filep : %p\n", filep);
+    // printf("buffer : %p\n", buffer);
     read_count = file_read(filep, buffer, size);
+    // printf("file_read 성공\n");
     lock_release(inode_get_lock(file_get_inode(filep)));
+    // printf("lock 해제 성공\n");
   }
 
   return read_count;
@@ -327,7 +357,6 @@ int read(int fd, void *buffer, unsigned size) {
  * @brief 파일 내용을 작성하는 system call, 작성한 byte 수 반환
  */
 int write(int fd, const void *buffer, unsigned size) {
-  check_address(buffer);
   int write_count;
 
   if (fd == STDOUT_FILENO) {
