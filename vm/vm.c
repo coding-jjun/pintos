@@ -282,7 +282,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 		} else if (parent_page->operations->type == VM_UNINIT) {  // uninit page인 경우
 			vm_initializer *initializer = parent_page->uninit.init;
 			struct lazy_load_info *aux = (struct lazy_load_info *)malloc(sizeof (struct lazy_load_info));
-			memcpy(aux, parent_page->uninit.aux, sizeof(struct lazy_load_info));//
+			memcpy(aux, parent_page->uninit.aux, sizeof(struct lazy_load_info));
 			if (!vm_alloc_page_with_initializer(type, upage, writable, initializer, aux)) {
 				return false;
 			}
