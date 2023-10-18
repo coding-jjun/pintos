@@ -50,7 +50,7 @@ struct frame *elem_to_frame(struct list_elem *elem);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 bool insert_page (struct hash *spt_hash, struct page *p);
 bool delete_page (struct hash *spt_hash, struct page *p);
-
+void spt_destructor(struct hash_elem *e, void *aux);
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
@@ -186,6 +186,11 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	//NOTE - stack이니까 anon type
+	if(vm_alloc_page(VM_ANON | VM_MARKER_0, addr, 1)){
+		vm_claim_page(addr);
+		thread_current()->stack_bottom -= PGSIZE;
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -194,6 +199,20 @@ vm_handle_wp (struct page *page UNUSED) {
 }
 
 /* Return true on success */
+/**
+ * @brief 
+ * 
+ * @param intr_frame f : 인터럽트나 예외가 발생했을 때 현재 CPU의 상태를 나타내는 구조체 
+ * @param addr : 페이지 폴트가 발생한 가상 주소 
+ * @param user : 페이지 폴트가 사용자 프로그램에서 발생했는지. true 면 사용자모드, false면 커널 모드 
+ * @param write : 페이지 폴트가 발생한 연산이 쓰기 연산인지 
+ * @param not_present : 해당 페이지가 메모리에 존재하지 않아서 페이지 폴트가 발생했는지 나타낸다. 
+ * 						페이지가 물리 메모리에 없어서 발생했는지 나타낸다. 
+ * @return true : 페이지 폴트를 성공적으로 처리했음을 의미. addr에 대한 페이지가 보조 페이지 테이블에 존재하며, 그 페이지를 물리적 메모리에
+ * 				  올릴 수 있었음을 나타낸다.	   
+ * @return false  : 페이지 폴트를 처리할 수 없었음. 주어진 가상 주소 addr에 대한 페이지가 보조 페이지 테이블에 존재하지 않거나, 페이지를 
+ * 					물리적 메모리에 올리는 데 실패했음을 나타낸다.		
+ */
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
@@ -201,12 +220,32 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-	page = spt_find_page(spt, addr);
-	if (page == NULL) {
+	//NOTE - user space page fault여야 함
+	if(is_kernel_vaddr(addr)){
 		return false;
 	}
-
-	return vm_do_claim_page (page);
+	void *rsp_stack = is_kernel_vaddr(f->rsp) ? thread_current()->rsp_stack : f->rsp;
+	//NOTE - not_present가 true이면 주어진 가상 주소 addr에 해당하는 페이지가 물리 메모리에 없다
+	if(not_present){
+		//NOTE - 주어진 주소에 대한 페이지를 물리 메모리에 할당하려고 시도
+		if(!vm_claim_page(addr)){ //NOTE - 실패하면 페이지 폴트가 발생한 주소가 사용자 스택 영역에 있는지 확인
+			if(rsp_stack-8 <= addr && USER_STACK - 0x100000 <= addr &&addr < USER_STACK){
+				//NOTE - user stack의 특정 범위 내에 있으면, 스택 확장
+				vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
+				return true;
+			}//user 스택 영역에 없다면 false반환 페이지 폴트 처리
+			return false;
+		}
+		//NOTE - 성공적으로 메모리 할당
+		else{
+			return true;
+		}
+	}
+	//NOTE - 주어진 가상 주소 addr에 해당하는 페이지가 물리 메모리에 있다. 이 경우 페이지 폴트의 원인이 페이지가 물리 메모리에 없는 것이
+	//		 아니다.(권한 오류 등)
+	return false;
+	//NOTE - 해당 페이지가 메모리에 올라갈 수 있는지 확인
+	// return vm_do_claim_page (page);
 }
 
 /* Free the page.
@@ -293,6 +332,17 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	// struct hash_iterator i;
+	// hash_first(&i, &spt->spt_hash);
+	// while(hash_next(&i)){
+	// 	struct page *page = hash_entry(hash_cur(&i), struct page, h_elem);
+
+	// 	if(page->operations->type == VM_FILE){
+	// 		do_munmap(page->va);
+	// 	}
+	// }
+	// hash_destroy(&spt->spt_hash, spt_destructor);
+	hash_clear(&spt->spt_hash, spt_destructor);
 }
 
 // SECTION - Project 3 VM
@@ -343,5 +393,11 @@ delete_page (struct hash *spt_hash, struct page *p) {
 	} else {
 		return false;
 	}
+}
+
+void 
+spt_destructor(struct hash_elem *e, void *aux){
+	const struct page *p = hash_entry(e, struct page, h_elem);
+	free(p);
 }
 // !SECTION - Project 3 VM

@@ -24,6 +24,7 @@
 
 #ifdef VM
 #include "vm/vm.h"
+// #include "include/lib/user/syscall.h"
 #endif
 
 static void process_cleanup(void);
@@ -166,6 +167,7 @@ static void __do_fork(void *aux) {
   struct thread *current = thread_current();
   struct intr_frame *parent_if = &parent->bf;
   bool succ = true;
+  
 
   /* 1. Read the cpu context to local stack. */
   memcpy((void *)&if_, parent_if, sizeof(struct intr_frame));
@@ -176,6 +178,8 @@ static void __do_fork(void *aux) {
     goto error;
 
   process_activate(current);
+  current->running = file_duplicate(parent->running);
+
 #ifdef VM
   supplemental_page_table_init(&current->spt);
   if (!supplemental_page_table_copy(&current->spt, &parent->spt))
@@ -829,9 +833,9 @@ bool setup_stack(struct intr_frame *if_) {
       thread_current()->stack_bottom = stack_bottom;
     }
   }
-  if (!success) {
-    printf("vm_claim 실패\n");
-  }
+  // if (!success) {
+  //   // printf("vm_claim 실패\n");
+  // }
   return success;
 }
 #endif /* VM */

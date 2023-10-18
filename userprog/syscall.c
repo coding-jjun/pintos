@@ -20,6 +20,8 @@
 #include "filesys/file.h"
 #include "filesys/inode.h"
 #include "devices/input.h"
+//!SECTION VM
+#include "vm/vm.h"
 
 /* System call.
  *
@@ -92,6 +94,10 @@ void syscall_init(void) {
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED) {
   // TODO: Your implementation goes here.
+
+  #ifdef VM
+  thread_current()->rsp_stack = f-> rsp;
+  #endif
   switch (f->R.rax) {
     case SYS_HALT:
       halt();
@@ -183,7 +189,8 @@ int exec(const char *file) {
   check_address(file);
 
   uint8_t *page;
-  if((page = palloc_get_page(PAL_USER)) == NULL) {
+  //NOTE - 굳이 user를 쓸 필요 없어서 kernel pool에서 가져온다
+  if((page = palloc_get_page(0)) == NULL) {
     return -1;
   }
   memcpy((void *)page, file, strlen(file) + 1);
