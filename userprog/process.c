@@ -177,6 +177,7 @@ static void __do_fork(void *aux) {
 
   process_activate(current);
   current->running = file_duplicate(parent->running);
+
 #ifdef VM
   supplemental_page_table_init(&current->spt);
   if (!supplemental_page_table_copy(&current->spt, &parent->spt))
@@ -221,7 +222,7 @@ int process_exec(void *f_name) {
   char *file_copy = f_name;
   bool success;
   int i;
-  char *argv[128] = {
+  char *argv[128] = { // 배열 0으로 초기화
       0,
   };
   char *token, *save_ptr; // token화 하기 위한 변수

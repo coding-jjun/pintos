@@ -137,11 +137,11 @@ void syscall_handler(struct intr_frame *f UNUSED) {
       f->R.rax = filesize(f->R.rdi);
       break;
     case SYS_READ:
-      check_valid_buffer(f->R.rsi, f->R.rdx, f->rsp, 1);
+      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 0);
       f->R.rax = read(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_WRITE:
-      check_valid_buffer(f->R.rsi, f->R.rdx, f->rsp, 1);
+      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = write(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_SEEK:
@@ -320,9 +320,6 @@ struct file *fd_to_file(int fd) {
  * @brief 파일을 읽는 system call, 읽은 byte 수를 반환
  */
 int read(int fd, void *buffer, unsigned size) {
-  if(check_address(buffer) == NULL){
-      exit(-1);
-  }
   uint8_t *buf = buffer;
   off_t read_count;
 
@@ -342,11 +339,15 @@ int read(int fd, void *buffer, unsigned size) {
     if (filep == NULL) { // 파일을 읽을 수 없는 경우
       return -1;
     }
-
     // exclusive read & write
     lock_acquire(inode_get_lock(file_get_inode(filep))); 
+    // printf("lock 획득 성공\n");
+    // printf("filep : %p\n", filep);
+    // printf("buffer : %p\n", buffer);
     read_count = file_read(filep, buffer, size);
+    // printf("file_read 성공\n");
     lock_release(inode_get_lock(file_get_inode(filep)));
+    // printf("lock 해제 성공\n");
   }
 
   return read_count;
@@ -356,9 +357,6 @@ int read(int fd, void *buffer, unsigned size) {
  * @brief 파일 내용을 작성하는 system call, 작성한 byte 수 반환
  */
 int write(int fd, const void *buffer, unsigned size) {
-  if(check_address(buffer) == NULL){
-      exit(-1);
-  }
   int write_count;
 
   if (fd == STDOUT_FILENO) {

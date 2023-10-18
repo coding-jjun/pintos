@@ -146,4 +146,4 @@ make clean
 make -j
 cd build
 
-$EXEC_ONCE
+$FORK_READ
