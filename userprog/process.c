@@ -454,9 +454,7 @@ struct ELF64_PHDR {
 
 bool setup_stack(struct intr_frame *if_);
 static bool validate_segment(const struct Phdr *, struct file *);
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable);
+bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum vm_type type);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
  * Stores the executable's entry point into *RIP
@@ -553,7 +551,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
           read_bytes = 0;
           zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
         }
-        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable))
+        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable, VM_ANON))
           goto done;
       } else
         goto done;
@@ -739,7 +737,7 @@ static bool install_page(void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-static bool lazy_load_segment(struct page *page, void *aux) {
+bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
@@ -772,10 +770,12 @@ static bool lazy_load_segment(struct page *page, void *aux) {
  * 이 함수에 의해 초기화된 페이지는, WRITABLE이 true이면 사용자 프로세스에 의해 쓰기 가능해야 하며,
  * 그렇지 않으면 읽기 전용이어야 합니다.
  *
- * 성공적이면 true를 반환하고, 메모리 할당 에러 또는 디스크 읽기 에러가 발생하면 false를 반환합니다. */
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable) {
+ * The pages initialized by this function must be writable by the
+ * user process if WRITABLE is true, read-only otherwise.
+ *
+ * Return true if successful, false if a memory allocation error
+ * or disk read error occurs. */
+bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum vm_type type) {
   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT(pg_ofs(upage) == 0);
   ASSERT(ofs % PGSIZE == 0);
@@ -799,7 +799,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     aux->zero_bytes = page_zero_bytes;
     aux->writable = writable;
 
-    if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux)) {
+    if (!vm_alloc_page_with_initializer(VM_TYPE(type), upage, writable, lazy_load_segment, aux)) {
       return false;
     }
     /* Advance. */

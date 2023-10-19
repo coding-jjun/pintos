@@ -16,13 +16,10 @@ test_main (void)
 
   for (i = 0; i < 2; i++) 
     {
-      CHECK ((handle[i] = open ("sample.txt")) > 1,
-             "open \"sample.txt\" #%zu", i);
-      CHECK (mmap (actual[i], 4096, 0, handle[i], 0) != MAP_FAILED,
-             "mmap \"sample.txt\" #%zu at %p", i, (void *) actual[i]);
+      CHECK ((handle[i] = open ("sample.txt")) > 1, "open \"sample.txt\" #%zu", i);
+      CHECK (mmap (actual[i], 4096, 0, handle[i], 0) != MAP_FAILED, "mmap \"sample.txt\" #%zu at %p", i, (void *) actual[i]);
     }
 
   for (i = 0; i < 2; i++)
-    CHECK (!memcmp (actual[i], sample, strlen (sample)),
-           "compare mmap'd file %zu against data", i);
+    CHECK (!memcmp (actual[i], sample, strlen (sample)),"compare mmap'd file %zu against data", i);
 }

@@ -143,7 +143,6 @@ COW_SIMPLE="pintos -v -k -T 60 -m 20   --fs-disk=10 -p tests/vm/cow/cow-simple:c
 # cd threads
 cd vm
 make clean
-make -j
 cd build
 
-$FORK_READ
+$MMAP_TWICE

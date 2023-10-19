@@ -80,14 +80,14 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		vm_initializer *initializer;
 		
 		switch (VM_TYPE(type)) {
-		case VM_ANON:
-			initializer = anon_initializer;
-			break;
-		case VM_FILE:
-			initializer = file_backed_initializer;
-			break;
-		default:
-			break;
+			case VM_ANON:
+				initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				initializer = file_backed_initializer;
+				break;
+			default:
+				break;
 		}
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
