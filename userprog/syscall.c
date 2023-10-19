@@ -157,7 +157,7 @@ void syscall_handler(struct intr_frame *f UNUSED) {
       close(f->R.rdi);
       break;
     case SYS_MMAP:
-      mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+      f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
       break;
     case SYS_MUNMAP:
       munmap(f->R.rdi);
@@ -446,21 +446,17 @@ int dup2(int oldfd, int newfd) { return 0; }
 
 // SECTION - Project 3 VM SYSTEM CALL
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
-  if (check_address(addr) != NULL) {
+  if (offset % PGSIZE != 0) {
+    return NULL;
+  }
+  if (addr != pg_round_down(addr) || is_kernel_vaddr(addr) || addr == NULL || (long long)length <= 0) {
+    return NULL;
+  }
+  if (fd < 2) {
     exit(-1);
-  }
-  if (addr != pg_round_down(addr)) {
-    return NULL;
-  }
-  if (fd  < 2) {
-    return NULL;
   }
   struct file *file = fd_to_file(fd);
   if (file == NULL) {
-    return NULL;
-  }
-
-  if (addr == 0  || length == 0) {
     return NULL;
   }
 

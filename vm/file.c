@@ -58,7 +58,11 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 		zero_bytes = PGSIZE - length % PGSIZE; 
 	}
 	read_bytes = length - zero_bytes;
-	return load_segment(file, offset, addr, read_bytes, zero_bytes, writable, VM_FILE);
+	file_reopen(file);
+	if (!load_segment(file, offset, addr, read_bytes, zero_bytes, writable, VM_FILE)) {
+		return NULL;
+	}
+	return addr;
 }
 
 /* Do the munmap */
