@@ -51,14 +51,11 @@ file_backed_destroy (struct page *page) {
 /* Do the mmap */
 void *
 do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offset) {
-	uint32_t read_bytes, zero_bytes;
-	if (!length % PGSIZE) {
-		zero_bytes = 0;
-	} else {
-		zero_bytes = PGSIZE - length % PGSIZE; 
-	}
-	read_bytes = length - zero_bytes;
 	file_reopen(file);
+	
+	size_t read_bytes = length > file_length(file) ? file_length(file) : length;
+	size_t zero_bytes = PGSIZE - read_bytes % PGSIZE;
+	
 	if (!load_segment(file, offset, addr, read_bytes, zero_bytes, writable, VM_FILE)) {
 		return NULL;
 	}
