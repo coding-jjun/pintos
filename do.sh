@@ -146,4 +146,4 @@ make clean
 make -j
 cd build
 
-$FORK_READ
+$MMAP_READ
