@@ -146,4 +146,4 @@ make clean
 make -j
 cd build
 
-$MMAP_READ
+$MMAP_NULL
