@@ -446,6 +446,9 @@ int dup2(int oldfd, int newfd) { return 0; }
 
 // SECTION - Project 3 VM SYSTEM CALL
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
+  if (check_address(addr) != NULL) {
+    exit(-1);
+  }
   if (addr != pg_round_down(addr)) {
     return NULL;
   }
@@ -456,9 +459,7 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
   if (file == NULL) {
     return NULL;
   }
-  if (spt_find_page(&thread_current()->spt.spt_hash, addr)) {
-    return NULL;
-  }
+
   if (addr == 0  || length == 0) {
     return NULL;
   }

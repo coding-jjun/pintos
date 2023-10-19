@@ -454,9 +454,7 @@ struct ELF64_PHDR {
 
 bool setup_stack(struct intr_frame *if_);
 static bool validate_segment(const struct Phdr *, struct file *);
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable);
+bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum vm_type type);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
  * Stores the executable's entry point into *RIP
@@ -553,7 +551,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
           read_bytes = 0;
           zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
         }
-        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable))
+        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable, VM_ANON))
           goto done;
       } else
         goto done;
@@ -777,9 +775,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
  *
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable) {
+bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum vm_type type) {
   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT(pg_ofs(upage) == 0);
   ASSERT(ofs % PGSIZE == 0);
@@ -803,7 +799,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     aux->zero_bytes = page_zero_bytes;
     aux->writable = writable;
 
-    if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux)) {
+    if (!vm_alloc_page_with_initializer(VM_TYPE(type), upage, writable, lazy_load_segment, aux)) {
       return false;
     }
     /* Advance. */
