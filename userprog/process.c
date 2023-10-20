@@ -827,9 +827,6 @@ bool setup_stack(struct intr_frame *if_) {
       thread_current()->stack_bottom = stack_bottom;
     }
   }
-  if (!success) {
-    printf("vm_claim 실패\n");
-  }
   return success;
 }
 #endif /* VM */
