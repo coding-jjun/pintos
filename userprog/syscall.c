@@ -464,11 +464,6 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 }
 
 void munmap (void *addr) {
-  struct page *page;
-  struct thread *cur = thread_current();
-  
-  // while(page = spt_find_page(&cur->spt.spt_hash, addr) != NULL){
-
-  // }
+  do_munmap(addr);
 }
 // !SECTION - Project 3 VM SYSTEM CALL

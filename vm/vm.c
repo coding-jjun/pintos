@@ -321,12 +321,12 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
-		hash_clear(&spt->spt_hash, spt_destructor);
+	hash_clear(&spt->spt_hash, spt_destructor);
 }
 
 void spt_destructor(struct hash_elem *e, void* aux){
-    const struct page *p = h_elem_to_page(e);
-    free(p);
+    struct page *page = h_elem_to_page(e);
+    vm_dealloc_page(page);
 }
 
 // SECTION - Project 3 VM

@@ -65,4 +65,53 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 /* Do the munmap */
 void
 do_munmap (void *addr) {
+//   struct thread *cur = thread_current();
+//   struct file *file;
+//   struct page *first_page = spt_find_page(&cur->spt, addr);
+//   if (first_page == NULL)
+//     return;
+
+//   file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
+
+//   while (true) {
+//     struct page *page = spt_find_page(&cur->spt, addr);
+//     if (page == NULL)
+//       break;
+
+//     struct lazy_load_info *aux = (struct lazy_load_info *)page->uninit.aux;
+
+//     if (file != aux->file)
+//       break;
+
+//     if (page->operations->type == VM_UNINIT) {
+//       free(page->uninit.aux);
+//     }
+//     if (pml4_is_dirty(cur->pml4, page->va)) {
+//       lock_acquire(inode_get_lock(file_get_inode(aux->file)));
+//       file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
+//       lock_release(inode_get_lock(file_get_inode(aux->file)));
+
+//       pml4_set_dirty(cur->pml4, page->va, 0);
+//     }
+
+//     pml4_clear_page(cur->pml4, page->va);
+//     addr += PGSIZE;
+//   }
+    while(true){
+        struct page* page = spt_find_page(&thread_current()->spt, addr);
+
+        if(page == NULL)
+            break;
+
+        struct lazy_load_info *aux = (struct lazy_load_info *)page->uninit.aux;
+
+        // dirty check
+        if(pml4_is_dirty(thread_current()->pml4, page->va)){
+            file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
+            pml4_set_dirty(thread_current()->pml4, page->va, 0);
+        }
+
+        pml4_clear_page(thread_current()->pml4, page->va);
+        addr += PGSIZE;
+    }
 }
