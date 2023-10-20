@@ -746,7 +746,7 @@ bool lazy_load_segment(struct page *page, void *aux) {
   off_t ofs = load_info->ofs;
   size_t read_bytes = load_info->read_bytes;
   size_t zero_bytes = load_info->zero_bytes;
-  free(load_info);
+  // free(load_info);
   
   void *upage = page->va;
   void *kpage = page->frame->kva;
