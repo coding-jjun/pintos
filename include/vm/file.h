@@ -7,6 +7,7 @@ struct page;
 enum vm_type;
 
 struct file_page {
+	/* TODO - add struct for file page */
 };
 
 void vm_file_init (void);
