@@ -57,17 +57,16 @@ file_backed_swap_out (struct page *page) {
 static void
 file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
-	struct lazy_load_info *aux = (struct lazy_load_info *)page->uninit.aux;
 
-	if (pml4_is_dirty(thread_current()->pml4, page->va)) {
-    lock_acquire(inode_get_lock(file_get_inode(aux->file)));
-    file_write_at(aux->file, page->va, aux->read_bytes, aux->ofs);
-    lock_release(inode_get_lock(file_get_inode(aux->file)));
-    pml4_set_dirty(thread_current()->pml4, page->va, 0);
-	}
+	// if (pml4_is_dirty(thread_current()->pml4, page->va)) {
+  //   lock_acquire(inode_get_lock(file_get_inode(aux->file)));
+  //   file_write_at(aux->file, page->va, aux->read_bytes, aux->ofs);
+  //   lock_release(inode_get_lock(file_get_inode(aux->file)));
+  //   pml4_set_dirty(thread_current()->pml4, page->va, 0);
+	// }
 
-	pml4_clear_page(thread_current()->pml4, page->va);
-	file_close(aux->file);
+	// pml4_clear_page(thread_current()->pml4, page->va);
+	// file_close(aux->file);
 }
 
 bool f_load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
@@ -176,18 +175,35 @@ do_munmap (void *addr) {
     if (page == NULL)
       break;
 
-    struct lazy_load_info *aux = (struct lazy_load_info *)page->uninit.aux;
+    // struct lazy_load_info *aux = (struct lazy_load_info *)page->uninit.aux;
 
-    if (file != aux->file)
-      break;
+    // if (file != aux->file)
+    //   break;
 
-    if (page->operations->type == VM_FILE) {
-      ASSERT(aux->file != NULL);
+    // if (page->operations->type == VM_FILE) {
+    //   ASSERT(aux->file != NULL);
 
+    //   if (pml4_is_dirty(cur->pml4, page->va)) {
+    //     lock_acquire(inode_get_lock(file_get_inode(aux->file)));
+    //     file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
+    //     lock_release(inode_get_lock(file_get_inode(aux->file)));
+
+    //     pml4_set_dirty(cur->pml4, page->va, 0);
+    //   }
+    //   pml4_clear_page(cur->pml4, page->va);
+    // }
+    if (page->operations->type == VM_UNINIT) {
+      if (((struct lazy_load_info *)page->uninit.aux)->file != file) {
+        break;
+      }
+    } else {
+      if (page->file.file != file) {
+        break;
+      }
       if (pml4_is_dirty(cur->pml4, page->va)) {
-        lock_acquire(inode_get_lock(file_get_inode(aux->file)));
-        file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
-        lock_release(inode_get_lock(file_get_inode(aux->file)));
+        lock_acquire(inode_get_lock(file_get_inode(page->file.file)));
+        file_write_at(page->file.file, addr, page->file.read_bytes, page->file.ofs);
+        lock_release(inode_get_lock(file_get_inode(page->file.file)));
 
         pml4_set_dirty(cur->pml4, page->va, 0);
       }

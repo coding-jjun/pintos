@@ -79,10 +79,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		struct page *page = (struct page *)malloc(sizeof(struct page));
 		vm_initializer *initializer;
 		
-		if (type & VM_MARKER_1) { // mmap시 header page인 경우
-			list_push_back(&thread_current()->head_list, &page->head_elem);
-		}
-		//NOTE - page type 별로 init -> 아직 물리 주소에 매핑되기 전 상태 -> uninit 상태
+		
 		switch (VM_TYPE(type)) {
 			case VM_ANON:
 				initializer = anon_initializer;
@@ -95,6 +92,9 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		}
 		//NOTE - init : lazy_load_segment -> page fault가 나면 lazy load segment
 		uninit_new(page, upage, init, type, aux, initializer);
+		if (type & VM_MARKER_1) { // mmap시 header page인 경우
+			list_push_back(&thread_current()->head_list, &page->head_elem);
+		}
 		page->writable = writable;
 		//NOTE - page 만들었으니까 insert
 		return spt_insert_page(spt, page);
