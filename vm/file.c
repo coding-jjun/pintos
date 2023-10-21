@@ -165,7 +165,11 @@ do_munmap (void *addr) {
     return;
 
   list_remove(&first_page->head_elem);  // head_list에서 header page의 head_elem제거
-  file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
+  if (first_page->operations->type == VM_FILE) {
+    file = first_page->file.file;
+  } else {
+    file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
+  }
 
   while (true) {
     struct page *page = spt_find_page(&cur->spt, addr);
