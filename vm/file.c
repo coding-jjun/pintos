@@ -158,54 +158,36 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 void
 do_munmap (void *addr) {
   struct thread *cur = thread_current();
-  struct file *file;
+  struct file *org_file;
   struct page *first_page = spt_find_page(&cur->spt, addr);
   if (first_page == NULL)
     return;
 
   list_remove(&first_page->head_elem);  // head_list에서 header page의 head_elem제거
   if (first_page->operations->type == VM_FILE) {
-    file = first_page->file.file;
+    org_file = first_page->file.file;
   } else { //uninit일 경우 uninit.aux에서 정보를 가지고 옴
-    file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
+    org_file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
   }
 
   while (true) {
     struct page *page = spt_find_page(&cur->spt, addr);
     if (page == NULL)
       break;
-
-    // struct lazy_load_info *aux = (struct lazy_load_info *)page->uninit.aux;
-
-    // if (file != aux->file)
-    //   break;
-
-    // if (page->operations->type == VM_FILE) {
-    //   ASSERT(aux->file != NULL);
-
-    //   if (pml4_is_dirty(cur->pml4, page->va)) {
-    //     lock_acquire(inode_get_lock(file_get_inode(aux->file)));
-    //     file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
-    //     lock_release(inode_get_lock(file_get_inode(aux->file)));
-
-    //     pml4_set_dirty(cur->pml4, page->va, 0);
-    //   }
-    //   pml4_clear_page(cur->pml4, page->va);
-    // }
     if (page->operations->type == VM_UNINIT) {
-      if (((struct lazy_load_info *)page->uninit.aux)->file != file) {
+      if (((struct lazy_load_info *)page->uninit.aux)->file != org_file) {
         //page가 uninit인 경우인데, file과 관련된 page가 아닌 경우 break 
         break;
         
       }
     } else { //page가 file type일 경우
-      if (page->file.file != file) { //page의 file type의 file이 현재 unmap시키려는 file이 아닌 경우->관련 없는 page인 경우
+      if (page->file.file != org_file) { //page의 file type의 file이 현재 unmap시키려는 file이 아닌 경우->관련 없는 page인 경우
         break;
       }
       else if (pml4_is_dirty(cur->pml4, page->va)) { //file과 관련있는 page인데 수정된 적이 있으면 수정된 사항을 덮어써야함 -> write하는 것과 다름없기 때문에 lock을 걸어줌
-        lock_acquire(inode_get_lock(file_get_inode(page->file.file)));
+        // lock_acquire(inode_get_lock(file_get_inode(page->file.file)));
         file_write_at(page->file.file, addr, page->file.read_bytes, page->file.ofs);
-        lock_release(inode_get_lock(file_get_inode(page->file.file)));
+        // lock_release(inode_get_lock(file_get_inode(page->file.file)));
 
         pml4_set_dirty(cur->pml4, page->va, 0);
       }
@@ -213,5 +195,5 @@ do_munmap (void *addr) {
     }
     addr += PGSIZE;
   }
-  file_close(file);
+  file_close(org_file);
 }
