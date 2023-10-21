@@ -70,6 +70,10 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		struct page *page = (struct page *)malloc(sizeof(struct page));
 		vm_initializer *initializer;
 		
+		if (type & VM_MARKER_1) { // mmap시 header page인 경우
+			list_push_back(&thread_current()->head_list, &page->head_elem);
+		}
+		
 		switch (VM_TYPE(type)) {
 			case VM_ANON:
 				initializer = anon_initializer;
@@ -305,6 +309,14 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	struct list h_list = thread_current()->head_list;
+	struct list_elem *e;
+	if (!list_empty(&h_list)) {
+		for (e = list_begin(&h_list); e != list_end(&h_list); e = list_next(e)) {
+			do_munmap(list_entry(e, struct page, head_elem)->va);
+		}
+	}
+
 	hash_clear(&spt->spt_hash, spt_destructor);
 }
 

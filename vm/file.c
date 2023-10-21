@@ -8,6 +8,9 @@ static bool file_backed_swap_in (struct page *page, void *kva);
 static bool file_backed_swap_out (struct page *page);
 static void file_backed_destroy (struct page *page);
 
+bool f_load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+bool f_lazy_load_segment(struct page *page, void *aux);
+
 /* DO NOT MODIFY this struct */
 static const struct page_operations file_ops = {
 	.swap_in = file_backed_swap_in,
@@ -25,9 +28,17 @@ vm_file_init (void) {
 bool
 file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
+  struct lazy_load_info *load_info = (struct lazy_load_info *)page->uninit.aux;
+
 	page->operations = &file_ops;
 	
 	struct file_page *file_page = &page->file;
+
+  file_page->file = load_info->file;
+  file_page->ofs = load_info->ofs;
+  file_page->read_bytes = load_info->read_bytes;
+  file_page->zero_bytes = load_info->zero_bytes;
+
 }
 
 /* Swap in the page by read contents from the file. */
@@ -59,6 +70,77 @@ file_backed_destroy (struct page *page) {
 	file_close(aux->file);
 }
 
+bool f_load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
+  ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
+  ASSERT(pg_ofs(upage) == 0);
+  ASSERT(ofs % PGSIZE == 0);
+
+  bool header = true;
+
+  while (read_bytes > 0 || zero_bytes > 0) {
+    /* Do calculate how to fill this page.
+     * We will read PAGE_READ_BYTES bytes from FILE
+     * and zero the final PAGE_ZERO_BYTES bytes. */
+    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+    /* TODO: Set up aux to pass information to the lazy_load_segment. */
+    struct lazy_load_info *aux = malloc(sizeof(struct lazy_load_info));
+    if (!aux) {
+      return false;
+    }
+
+    aux->file = file;
+    aux->ofs = ofs;
+    aux->read_bytes = page_read_bytes;
+    aux->zero_bytes = page_zero_bytes;
+    aux->writable = writable;
+
+    if (header) {  // header page인 경우
+      if(!vm_alloc_page_with_initializer(VM_FILE | VM_MARKER_1, upage, writable, f_lazy_load_segment, aux)) {
+        header = false;
+        return false;
+      }
+      header = false;
+    } else {  // header page가 아닌 경우
+      if (!vm_alloc_page_with_initializer(VM_FILE, upage, writable, f_lazy_load_segment, aux)) {
+        return false;
+      }
+    }
+
+    /* Advance. */
+    read_bytes -= page_read_bytes;
+    zero_bytes -= page_zero_bytes;
+    upage += PGSIZE;
+    ofs += page_read_bytes;
+  }
+  return true;
+}
+
+bool f_lazy_load_segment(struct page *page, void *aux) {
+  /* TODO: Load the segment from the file */
+  /* TODO: This called when the first page fault occurs on address VA. */
+  /* TODO: VA is available when calling this function. */
+  struct lazy_load_info *load_info = (struct lazy_load_info *)aux;
+  struct file *file = load_info->file;
+  off_t ofs = load_info->ofs;
+  size_t read_bytes = load_info->read_bytes;
+  size_t zero_bytes = load_info->zero_bytes;
+  free(load_info);
+  
+  void *upage = page->va;
+  void *kpage = page->frame->kva;
+
+  file_seek(file, ofs);
+  if (file_read(file, kpage, read_bytes) != (int)read_bytes) {
+    palloc_free_page(page->frame->kva);
+    return false;
+  }
+
+  memset(kpage + read_bytes, 0, zero_bytes);
+  return true;
+}
+
 /* Do the mmap */
 void *
 do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offset) {
@@ -67,7 +149,7 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 	size_t read_bytes = length > file_length(new_file) ? file_length(new_file) : length;
 	size_t zero_bytes = PGSIZE - read_bytes % PGSIZE;
 	
-	if (!load_segment(new_file, offset, addr, read_bytes, zero_bytes, writable, VM_FILE)) {
+	if (!f_load_segment(new_file, offset, addr, read_bytes, zero_bytes, writable)) {
 		return NULL;
 	}
 	return addr;
@@ -82,6 +164,7 @@ do_munmap (void *addr) {
   if (first_page == NULL)
     return;
 
+  list_remove(&first_page->head_elem);  // head_list에서 header page의 head_elem제거
   file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
 
   while (true) {
@@ -93,44 +176,20 @@ do_munmap (void *addr) {
 
     if (file != aux->file)
       break;
-    if (page->operations->type == VM_UNINIT) {
-      free(page->uninit.aux);
-    }
 
-    ASSERT(aux->file != NULL);
+    if (page->operations->type == VM_FILE) {
+      ASSERT(aux->file != NULL);
 
-    if (pml4_is_dirty(cur->pml4, page->va)) {
-      lock_acquire(inode_get_lock(file_get_inode(aux->file)));
-      file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
-      lock_release(inode_get_lock(file_get_inode(aux->file)));
+      if (pml4_is_dirty(cur->pml4, page->va)) {
+        lock_acquire(inode_get_lock(file_get_inode(aux->file)));
+        file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
+        lock_release(inode_get_lock(file_get_inode(aux->file)));
 
-      pml4_set_dirty(cur->pml4, page->va, 0);
-    }
-    if (page->frame != NULL) {
-      page->frame->page = NULL;
-      list_remove(&page->frame->f_elem);
-      page->frame = NULL;
-      free(page->frame);
-    }
+        pml4_set_dirty(cur->pml4, page->va, 0);
+      }
       pml4_clear_page(cur->pml4, page->va);
-      addr += PGSIZE;
+    }
+    addr += PGSIZE;
   }
   file_close(file);
-    // while(true){
-    //     struct page* page = spt_find_page(&thread_current()->spt, addr);
-
-    //     if(page == NULL)
-    //         break;
-
-    //     struct lazy_load_info *aux = (struct lazy_load_info *)page->uninit.aux;
-
-    //     // dirty check
-    //     if (pml4_is_dirty(thread_current()->pml4, page->va)) {
-    //         file_write_at(aux->file, addr, aux->read_bytes, aux->ofs);
-    //         pml4_set_dirty(thread_current()->pml4, page->va, 0);
-    //     }
-
-    //     pml4_clear_page(thread_current()->pml4, page->va);
-    //     addr += PGSIZE;
-    // }
 }
