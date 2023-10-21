@@ -70,9 +70,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		struct page *page = (struct page *)malloc(sizeof(struct page));
 		vm_initializer *initializer;
 		
-		if (type & VM_MARKER_1) { // mmap시 header page인 경우
-			list_push_back(&thread_current()->head_list, &page->head_elem);
-		}
 		
 		switch (VM_TYPE(type)) {
 			case VM_ANON:
@@ -85,6 +82,9 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 				break;
 		}
 		uninit_new(page, upage, init, type, aux, initializer);
+		if (type & VM_MARKER_1) { // mmap시 header page인 경우
+			list_push_back(&thread_current()->head_list, &page->head_elem);
+		}
 		page->writable = writable;
 
 		return spt_insert_page(spt, page);
