@@ -34,7 +34,7 @@ uninit_new (struct page *page, void *va, vm_initializer *init,
 		.va = va,
 		.frame = NULL, /* no frame for now */
 		.uninit = (struct uninit_page) {
-			.init = init,
+			.init = init,					
 			.type = type,
 			.aux = aux,
 			.page_initializer = initializer,
@@ -43,6 +43,7 @@ uninit_new (struct page *page, void *va, vm_initializer *init,
 }
 
 /* Initalize the page on first fault */
+//uninit 타입 페이지의 initializer
 static bool
 uninit_initialize (struct page *page, void *kva) {
 	struct uninit_page *uninit = &page->uninit;
@@ -65,5 +66,6 @@ uninit_destroy (struct page *page) {
 	struct uninit_page *uninit UNUSED = &page->uninit;
 	/* TODO: Fill this function.
 	 * TODO: If you don't have anything to do, just return. */
+	//uninit은 아직 물리 메모리에 로드된게 아니기 때문에 그냥 바로 free 시켜주면 됨
 	free(page->uninit.aux);
 }

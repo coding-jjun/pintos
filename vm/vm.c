@@ -78,7 +78,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		/* TODO: Insert the page into the spt. */
 		struct page *page = (struct page *)malloc(sizeof(struct page));
 		vm_initializer *initializer;
-		
+		//NOTE - page type 별로 init -> 아직 물리 주소에 매핑되기 전 상태 -> uninit 상태
 		switch (VM_TYPE(type)) {
 			case VM_ANON:
 				initializer = anon_initializer;
@@ -89,9 +89,10 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 			default:
 				break;
 		}
+		//NOTE - init : lazy_load_segment -> page fault가 나면 lazy load segment
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
-
+		//NOTE - page 만들었으니까 insert
 		return spt_insert_page(spt, page);
 	}
 err:
@@ -251,7 +252,9 @@ bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page;
 	/* TODO: Fill this function */
+	//만약 spt 테이블에서 page를 찾는다면 아직 물리 주소와 연결되지 않았다는 뜻이니까 do claim 호출
 	page = spt_find_page(&thread_current()->spt, va);
+	//페이지를 찾지 못했다면 -> 1. unmap되었거나 2. 초기화 되지 않았거나 사용되지 않았을 때 3. 유효하지 않거나 잘못된 주소일 때
 	if (page == NULL) {
 		return false;
 	}
@@ -259,6 +262,7 @@ vm_claim_page (void *va UNUSED) {
 }
 
 /* Claim the PAGE and set up the mmu. */
+//물리 주소, 즉 프레임과 page 연결
 static bool
 vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
@@ -268,7 +272,9 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	//이미 물리 주소에 매핑이 된 페이지라면
     if(install_page(page->va, frame->kva, page->writable)){
+		//디스크에 있는 페이지를 swap in으로 다시 물리 메모리에 로드해준다
         return swap_in(page, frame->kva);
     }
     return false;
@@ -281,10 +287,12 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 }
 
 /* Copy supplemental page table from src to dst */
+//fork
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {
 	/* TODO: copy the supplemental page table for fork */
 	struct hash_iterator i;
+	//부모 프로세스의 page 테이블을 fork
 	hash_first(&i, &src->spt_hash);
 	while(hash_next(&i)) {
 		struct page *parent_page = h_elem_to_page(hash_cur(&i));
@@ -295,11 +303,11 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 
 		if (parent_page->uninit.type & VM_MARKER_0) {  // stack page인 경우
 			setup_stack(&thread_current()->tf);
-		} else if (parent_page->operations->type == VM_UNINIT) {  // uninit page인 경우
+		} else if (parent_page->operations->type == VM_UNINIT) {  // uninit page인 경우 -> 아직 load 되지 않은 page
 			vm_initializer *initializer = parent_page->uninit.init;
-			struct lazy_load_info *aux = (struct lazy_load_info *)malloc(sizeof (struct lazy_load_info));
-			memcpy(aux, parent_page->uninit.aux, sizeof(struct lazy_load_info));
-			if (!vm_alloc_page_with_initializer(type, upage, writable, initializer, aux)) {
+			struct lazy_load_info *aux = (struct lazy_load_info *)malloc(sizeof (struct lazy_load_info)); //aux를 malloc해주지 않으면 호출 함수로 인자를 넘긴 뒤로 사라져서 참조할 수 없어진다
+			memcpy(aux, parent_page->uninit.aux, sizeof(struct lazy_load_info));//free해주거나 uninit이 먼저 destroy되어버리면 uninit.aux를 참조할 수 없기 때문에 memcpy해줌							
+			if (!vm_alloc_page_with_initializer(type, upage, writable, initializer, aux)) { 
 				return false;
 			}
 		} else {  // uninit page가 아닌 경우, page 할당 후 바로 mapping
@@ -308,7 +316,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 			}
 		}
 
-		if (parent_page->operations->type != VM_UNINIT) {
+		if (parent_page->operations->type != VM_UNINIT) { //스택일 경우에는 매핑이 되어있을
 			struct page *child_page = spt_find_page(dst, upage);
 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);  // mapping된 frame에 부모의 frame 내용 복사
 		}

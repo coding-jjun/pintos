@@ -746,6 +746,7 @@ bool lazy_load_segment(struct page *page, void *aux) {
   off_t ofs = load_info->ofs;
   size_t read_bytes = load_info->read_bytes;
   size_t zero_bytes = load_info->zero_bytes;
+  //load info를 free 시켜주면 file이 unmap되었을때 부가정보를 찾지 못한다.
   // free(load_info);
   
   void *upage = page->va;
@@ -776,15 +777,20 @@ bool lazy_load_segment(struct page *page, void *aux) {
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
 bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum vm_type type) {
+  //NOTE - read byte + zero byte 는 pGSIZE의 배수가 되어야함
+  //NOTE - zero byte는 일종의 padding. read byte가 page에서 사용되는 byte 크기이며, zero byte는 남는 크기를 0으로 채워주는 것
   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT(pg_ofs(upage) == 0);
+  //NOTE - offset도 PGSIZE로 나누어 떨어져야 함
   ASSERT(ofs % PGSIZE == 0);
 
   while (read_bytes > 0 || zero_bytes > 0) {
     /* Do calculate how to fill this page.
      * We will read PAGE_READ_BYTES bytes from FILE
      * and zero the final PAGE_ZERO_BYTES bytes. */
+    //read_byte가 PGSIZE보다 작으면 그냥 read byte로, 크다면 PGSIZE단위로 끊어서
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    //read_byte를 PGSIZE에서 빼면 padding해줘야할 크기가 나옴
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
     /* TODO: Set up aux to pass information to the lazy_load_segment. */
@@ -792,13 +798,13 @@ bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_by
     if (!aux) {
       return false;
     }
-
-    aux->file = file;
-    aux->ofs = ofs;
-    aux->read_bytes = page_read_bytes;
-    aux->zero_bytes = page_zero_bytes;
-    aux->writable = writable;
-
+    
+    aux->file = file;                       //page의 시작 주소
+    aux->ofs = ofs;                         //offset의 시작 주소
+    aux->read_bytes = page_read_bytes;      //위에서 계산해준 read_byte
+    aux->zero_bytes = page_zero_bytes;      //마찬가지로 위에서 계산해준 zero byte
+    aux->writable = writable;               //쓸 수 있는 파일인지
+    //타입별로 init
     if (!vm_alloc_page_with_initializer(VM_TYPE(type), upage, writable, lazy_load_segment, aux)) {
       return false;
     }
@@ -812,6 +818,7 @@ bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_by
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
+//NOTE - 스택은 프로세스가 무조건 가지고 있어야하는 페이지. 프로세스가 실행되려면 스택 페이지가 있어야함
 bool setup_stack(struct intr_frame *if_) {
   bool success = false;
   void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
@@ -820,7 +827,9 @@ bool setup_stack(struct intr_frame *if_) {
    * TODO: If success, set the rsp accordingly.
    * TODO: You should mark the page is stack. */
   /* TODO: Your code goes here */
+  //stack 타입은 1000, anon 타입은 0001 == 1001
   if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)) {
+    //stack page는 lazy load 하지 않아도 됨. 바로 물리 주소와 연결해주면 됨
     success = vm_claim_page(stack_bottom);
     if (success) {
       if_->rsp = USER_STACK;
