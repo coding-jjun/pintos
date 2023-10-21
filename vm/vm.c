@@ -310,14 +310,19 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 	struct list *h_list = &thread_current()->head_list;
-	struct list_elem *e;
-	if (!list_empty(h_list)) {
-		for (e = list_begin(h_list); e != list_end(h_list); e = list_next(e)) {
-			do_munmap(list_entry(e, struct page, head_elem));
-		}
+	// struct list_elem *e;
+	// if (!list_empty(h_list)) {
+	// 	for (e = list_begin(h_list); e != list_end(h_list); e = list_next(e)) {
+	// 		do_munmap(list_entry(e, struct page, head_elem));
+	// 	}
+	// }
+
+	while (!list_empty(h_list)) {
+		do_munmap(list_entry(list_front(h_list), struct page, head_elem)->va);
 	}
 
 	hash_clear(&spt->spt_hash, spt_destructor);
+	// hash_destroy(&spt->spt_hash, spt_destructor);
 }
 
 void spt_destructor(struct hash_elem *e, void* aux){
