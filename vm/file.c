@@ -166,7 +166,7 @@ do_munmap (void *addr) {
   list_remove(&first_page->head_elem);  // head_list에서 header page의 head_elem제거
   if (first_page->operations->type == VM_FILE) {
     file = first_page->file.file;
-  } else {
+  } else { //uninit일 경우 uninit.aux에서 정보를 가지고 옴
     file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
   }
 
@@ -194,13 +194,15 @@ do_munmap (void *addr) {
     // }
     if (page->operations->type == VM_UNINIT) {
       if (((struct lazy_load_info *)page->uninit.aux)->file != file) {
+        //page가 uninit인 경우인데, file과 관련된 page가 아닌 경우 break 
+        break;
+        
+      }
+    } else { //page가 file type일 경우
+      if (page->file.file != file) { //page의 file type의 file이 현재 unmap시키려는 file이 아닌 경우->관련 없는 page인 경우
         break;
       }
-    } else {
-      if (page->file.file != file) {
-        break;
-      }
-      if (pml4_is_dirty(cur->pml4, page->va)) {
+      else if (pml4_is_dirty(cur->pml4, page->va)) { //file과 관련있는 page인데 수정된 적이 있으면 수정된 사항을 덮어써야함 -> write하는 것과 다름없기 때문에 lock을 걸어줌
         lock_acquire(inode_get_lock(file_get_inode(page->file.file)));
         file_write_at(page->file.file, addr, page->file.read_bytes, page->file.ofs);
         lock_release(inode_get_lock(file_get_inode(page->file.file)));
