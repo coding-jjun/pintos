@@ -454,7 +454,8 @@ struct ELF64_PHDR {
 
 bool setup_stack(struct intr_frame *if_);
 static bool validate_segment(const struct Phdr *, struct file *);
-bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum vm_type type);
+static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+static bool lazy_load_segment(struct page *page, void *aux);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
  * Stores the executable's entry point into *RIP
@@ -551,7 +552,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
           read_bytes = 0;
           zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
         }
-        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable, VM_ANON))
+        if (!load_segment(file, file_page, (void *)mem_page, read_bytes, zero_bytes, writable))
           goto done;
       } else
         goto done;
@@ -737,7 +738,7 @@ static bool install_page(void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-bool lazy_load_segment(struct page *page, void *aux) {
+static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
@@ -747,7 +748,7 @@ bool lazy_load_segment(struct page *page, void *aux) {
   size_t read_bytes = load_info->read_bytes;
   size_t zero_bytes = load_info->zero_bytes;
   //load info를 free 시켜주면 file이 unmap되었을때 부가정보를 찾지 못한다.
-  // free(load_info);
+  free(load_info);
   
   void *upage = page->va;
   void *kpage = page->frame->kva;
@@ -776,7 +777,7 @@ bool lazy_load_segment(struct page *page, void *aux) {
  *
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
-bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, enum vm_type type) {
+static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
   //NOTE - read byte + zero byte 는 pGSIZE의 배수가 되어야함
   //NOTE - zero byte는 일종의 padding. read byte가 page에서 사용되는 byte 크기이며, zero byte는 남는 크기를 0으로 채워주는 것
   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
@@ -805,7 +806,7 @@ bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_by
     aux->zero_bytes = page_zero_bytes;      //마찬가지로 위에서 계산해준 zero byte
     aux->writable = writable;               //쓸 수 있는 파일인지
     //타입별로 init
-    if (!vm_alloc_page_with_initializer(VM_TYPE(type), upage, writable, lazy_load_segment, aux)) {
+    if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux)) {
       return false;
     }
     /* Advance. */
