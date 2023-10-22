@@ -128,9 +128,14 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 /* Get the struct frame, that will be evicted. */
 static struct frame *
 vm_get_victim (void) {
+	if(evict_start == NULL && !list_empty(&frame_table)){
+		evict_start = list_begin(&frame_table);
+	}
+
 	struct frame *victim = NULL;
 	struct thread *cur = thread_current();
 	struct list_elem *e = evict_start;
+	int cnt = 0;
 
 	for (evict_start = e; evict_start != list_end(&frame_table); evict_start = list_next(evict_start)) {
 		victim = elem_to_frame(evict_start);
@@ -148,7 +153,6 @@ vm_get_victim (void) {
 			return victim;
 		}
 	}
-
 	return victim;
 }
 
