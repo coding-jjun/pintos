@@ -146,4 +146,4 @@ make clean
 make
 cd build
 
-$SWAP_ANON
+$SWAP_ITER

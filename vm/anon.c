@@ -28,7 +28,7 @@ void
 vm_anon_init (void) {
 	/* TODO: Set up the swap_disk. */
 	swap_disk = disk_get(1, 1);
-	size_t swap_table_size = disk_size(swap_disk) / SECTORS_PER_PAGE;
+	int swap_table_size = disk_size(swap_disk) / SECTORS_PER_PAGE;
 	swap_table = bitmap_create(swap_table_size);
 }
 
@@ -71,7 +71,7 @@ anon_swap_out (struct page *page) {
 	}
 
 	for(int i = 0; i < SECTORS_PER_PAGE; ++i) {
-		disk_write(swap_disk, i + SECTORS_PER_PAGE * swap_index, page->va + i * DISK_SECTOR_SIZE);
+		disk_write(swap_disk, i + SECTORS_PER_PAGE * swap_index, (page->va) + i * DISK_SECTOR_SIZE);
 	}
 
 	bitmap_set(swap_table, swap_index, true);
