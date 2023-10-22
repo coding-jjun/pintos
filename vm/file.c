@@ -145,7 +145,7 @@ void *
 do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offset) {
   struct file *new_file = file_reopen(file);
 	
-	size_t read_bytes = length > file_length(new_file) ? file_length(new_file) : length;
+	size_t read_bytes = length > file_length(file) ? file_length(file) : length;
 	size_t zero_bytes = PGSIZE - read_bytes % PGSIZE;
 	
 	if (!f_load_segment(new_file, offset, addr, read_bytes, zero_bytes, writable)) {
@@ -164,10 +164,10 @@ do_munmap (void *addr) {
     return;
 
   list_remove(&first_page->head_elem);  // head_list에서 header page의 head_elem제거
-  if (first_page->operations->type == VM_FILE) {
-    org_file = first_page->file.file;
-  } else { //uninit일 경우 uninit.aux에서 정보를 가지고 옴
+  if (first_page->operations->type == VM_UNINIT) {
     org_file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
+  } else {
+    org_file = first_page->file.file;
   }
   //spt 테이블 돌면서 unmap하려는 file과 관련된 page찾아서 munmap
   while (true) {
@@ -186,9 +186,8 @@ do_munmap (void *addr) {
       }
       if (pml4_is_dirty(cur->pml4, page->va)) { //file과 관련있는 page인데 수정된 적이 있으면 수정된 사항을 덮어써야함 -> write하는 것과 다름없기 때문에 lock을 걸어줌
         // lock_acquire(inode_get_lock(file_get_inode(page->file.file)));
-        file_write_at(page->file.file, addr, page->file.read_bytes, page->file.ofs);
+        file_write_at(page->file.file, page->va, page->file.read_bytes, page->file.ofs);
         // lock_release(inode_get_lock(file_get_inode(page->file.file)));
-
         pml4_set_dirty(cur->pml4, page->va, 0);
       }
       pml4_clear_page(cur->pml4, page->va);
