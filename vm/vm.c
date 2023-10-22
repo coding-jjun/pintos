@@ -141,18 +141,23 @@ static struct frame *
 vm_get_victim (void) {
 	struct frame *victim = NULL;
 	struct thread *cur = thread_current();
+	
+	if(evict_start == NULL && !list_empty(&frame_table)){
+    	evict_start = list_begin(&frame_table);
+  	}
+
 	struct list_elem *e = evict_start;
 
-	for (evict_start = e; evict_start != list_end(&frame_table); evict_start = list_next(evict_start)) {
-		victim = elem_to_frame(evict_start);
+	for (e; e != list_end(&frame_table); e = list_next(e)) {
+		victim = elem_to_frame(e);
 		if (pml4_is_accessed(cur->pml4, victim->page->va)) {
 			pml4_set_accessed(cur->pml4, victim->page->va, NOT_ACCESSED);
 		} else {
 			return victim;
 		}
 	}
-	for (evict_start = list_begin(&frame_table); evict_start != e; evict_start = list_next(evict_start)) {
-		victim = elem_to_frame(evict_start);
+	for (e = list_begin(&frame_table); e != list_end(&frame_table); e = list_next(e)) {
+		victim = elem_to_frame(e);
 		if (pml4_is_accessed(cur->pml4, victim->page->va)) {
 			pml4_set_accessed(cur->pml4, victim->page->va, NOT_ACCESSED);
 		} else {
