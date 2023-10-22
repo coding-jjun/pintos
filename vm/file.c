@@ -143,7 +143,7 @@ bool f_lazy_load_segment(struct page *page, void *aux) {
 /* Do the mmap */
 void *
 do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offset) {
-	struct file *new_file = file_reopen(file);
+  struct file *new_file = file_reopen(file);
 	
 	size_t read_bytes = length > file_length(new_file) ? file_length(new_file) : length;
 	size_t zero_bytes = PGSIZE - read_bytes % PGSIZE;
@@ -169,7 +169,7 @@ do_munmap (void *addr) {
   } else { //uninit일 경우 uninit.aux에서 정보를 가지고 옴
     org_file = ((struct lazy_load_info *)first_page->uninit.aux)->file;
   }
-
+  //spt 테이블 돌면서 unmap하려는 file과 관련된 page찾아서 munmap
   while (true) {
     struct page *page = spt_find_page(&cur->spt, addr);
     if (page == NULL)
@@ -184,7 +184,7 @@ do_munmap (void *addr) {
       if (page->file.file != org_file) { //page의 file type의 file이 현재 unmap시키려는 file이 아닌 경우->관련 없는 page인 경우
         break;
       }
-      else if (pml4_is_dirty(cur->pml4, page->va)) { //file과 관련있는 page인데 수정된 적이 있으면 수정된 사항을 덮어써야함 -> write하는 것과 다름없기 때문에 lock을 걸어줌
+      if (pml4_is_dirty(cur->pml4, page->va)) { //file과 관련있는 page인데 수정된 적이 있으면 수정된 사항을 덮어써야함 -> write하는 것과 다름없기 때문에 lock을 걸어줌
         // lock_acquire(inode_get_lock(file_get_inode(page->file.file)));
         file_write_at(page->file.file, addr, page->file.read_bytes, page->file.ofs);
         // lock_release(inode_get_lock(file_get_inode(page->file.file)));

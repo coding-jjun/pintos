@@ -179,13 +179,15 @@ disk_print_stats (void) {
    Pintos uses disks this way:
 0:0 - boot loader, command line args, and operating system kernel
 0:1 - file system
-1:0 - scratch
-1:1 - swap
+1:0 - scratch(임시 데이터 저장)
+1:1 - swap space
 */
+//특정 채널과 디바이스 번호에 해당하는 디스크 반환
 struct disk *
 disk_get (int chan_no, int dev_no) {
 	ASSERT (dev_no == 0 || dev_no == 1);
-
+	//입력으로 받은 chan_no가 유효한 채널 범위 내에 있는지 확인
+	//유효한 채널 번호는 0에서 CHANNEL_CNT - 1까지
 	if (chan_no < (int) CHANNEL_CNT) {
 		struct disk *d = &channels[chan_no].devices[dev_no];
 		if (d->is_ata)

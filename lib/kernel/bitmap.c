@@ -16,9 +16,11 @@
    If bit 0 in an element represents bit K in the bitmap,
    then bit 1 in the element represents bit K+1 in the bitmap,
    and so on. */
+//비트맵의 기본 단위로 사용되는 타입 정의
 typedef unsigned long elem_type;
 
 /* Number of bits in an element. */
+//elem_type 하나에 들어갈 수 있는 비트의 수 계산
 #define ELEM_BITS (sizeof (elem_type) * CHAR_BIT)
 
 /* From the outside, a bitmap is an array of bits.  From the
@@ -31,6 +33,7 @@ struct bitmap {
 
 /* Returns the index of the element that contains the bit
    numbered BIT_IDX. */
+//
 static inline size_t
 elem_idx (size_t bit_idx) {
 	return bit_idx / ELEM_BITS;
@@ -69,6 +72,7 @@ last_mask (const struct bitmap *b) {
    and sets all of its bits to false.
    Returns true if success, false if memory allocation
    failed. */
+//주어진 크기 bit_cnt의 새 비트맵 생성하고 모든 비트를 false로 초기화
 struct bitmap *
 bitmap_create (size_t bit_cnt) {
 	struct bitmap *b = malloc (sizeof *b);
@@ -87,6 +91,7 @@ bitmap_create (size_t bit_cnt) {
 /* Creates and returns a bitmap with BIT_CNT bits in the
    BLOCK_SIZE bytes of storage preallocated at BLOCK.
    BLOCK_SIZE must be at least bitmap_needed_bytes(BIT_CNT). */
+//주어진 버퍼(block)에 비트맵 생성. 별도의 메모리 할당을 하지 않음. 메모리 할당이 제한된 환경에서 사용
 struct bitmap *
 bitmap_create_in_buf (size_t bit_cnt, void *block, size_t block_size UNUSED) {
 	struct bitmap *b = block;
@@ -101,6 +106,7 @@ bitmap_create_in_buf (size_t bit_cnt, void *block, size_t block_size UNUSED) {
 
 /* Returns the number of bytes required to accomodate a bitmap
    with BIT_CNT bits (for use with bitmap_create_in_buf()). */
+//주어진 비트 수에 필요한 바이트 수 계산. bitmap_create_in_buf 함수에서 비트맵을 생성할 때 필요한 메모리 크기를 계산하는데 사용된다.
 size_t
 bitmap_buf_size (size_t bit_cnt) {
 	return sizeof (struct bitmap) + byte_cnt (bit_cnt);
@@ -109,6 +115,7 @@ bitmap_buf_size (size_t bit_cnt) {
 /* Destroys bitmap B, freeing its storage.
    Not for use on bitmaps created by
    bitmap_create_preallocated(). */
+//비트맵 파괴하고 사용된 메모리 해제. bitmap_create로 생성된 비트맵에만 사용 가능
 void
 bitmap_destroy (struct bitmap *b) {
 	if (b != NULL) {
@@ -128,6 +135,7 @@ bitmap_size (const struct bitmap *b) {
 /* Setting and testing single bits. */
 
 /* Atomically sets the bit numbered IDX in B to VALUE. */
+//비트맵의 특정 비트 설정. value가 true면 비트를 설정, false면 비트 해제
 void
 bitmap_set (struct bitmap *b, size_t idx, bool value) {
 	ASSERT (b != NULL);
@@ -139,6 +147,7 @@ bitmap_set (struct bitmap *b, size_t idx, bool value) {
 }
 
 /* Atomically sets the bit numbered BIT_IDX in B to true. */
+//비트맵의 특정 비트 설정
 void
 bitmap_mark (struct bitmap *b, size_t bit_idx) {
 	size_t idx = elem_idx (bit_idx);
@@ -151,6 +160,7 @@ bitmap_mark (struct bitmap *b, size_t bit_idx) {
 }
 
 /* Atomically sets the bit numbered BIT_IDX in B to false. */
+//특정 비트 해제
 void
 bitmap_reset (struct bitmap *b, size_t bit_idx) {
 	size_t idx = elem_idx (bit_idx);
@@ -177,16 +187,18 @@ bitmap_flip (struct bitmap *b, size_t bit_idx) {
 }
 
 /* Returns the value of the bit numbered IDX in B. */
+//비트맵의 특정 비트의 값을 반환
 bool
 bitmap_test (const struct bitmap *b, size_t idx) {
 	ASSERT (b != NULL);
 	ASSERT (idx < b->bit_cnt);
 	return (b->bits[elem_idx (idx)] & bit_mask (idx)) != 0;
 }
-
+
 /* Setting and testing multiple bits. */
 
 /* Sets all bits in B to VALUE. */
+//비트맵의 모든 비트를 설정하거나 해제한다
 void
 bitmap_set_all (struct bitmap *b, bool value) {
 	ASSERT (b != NULL);
@@ -195,6 +207,7 @@ bitmap_set_all (struct bitmap *b, bool value) {
 }
 
 /* Sets the CNT bits starting at START in B to VALUE. */
+//비트맵의 연속된 범위의 비트를 설정하거나 해제
 void
 bitmap_set_multiple (struct bitmap *b, size_t start, size_t cnt, bool value) {
 	size_t i;
@@ -209,6 +222,7 @@ bitmap_set_multiple (struct bitmap *b, size_t start, size_t cnt, bool value) {
 
 /* Returns the number of bits in B between START and START + CNT,
    exclusive, that are set to VALUE. */
+//비트맵의 연속된 범위에서 특정 값으로 설정된 비트의 수를 세어 반환
 size_t
 bitmap_count (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	size_t i, value_cnt;
@@ -226,6 +240,17 @@ bitmap_count (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 
 /* Returns true if any bits in B between START and START + CNT,
    exclusive, are set to VALUE, and false otherwise. */
+//주어진 범위 안의 비트 중에서 특정 값을 가진 비트가 하나라도 있는지 확인
+/**
+ * @brief 
+ * 
+ * @param b : 검사할 비트맵 구조체 포인터 
+ * @param start : 검사를 시작할 인덱스
+ * @param cnt : 검사할 비트의 수
+ * @param value : 찾고자 하는 비트 값(true of false)
+ * @return true : 찾고자 하는 값의 비트가 하나라도 있으면 true
+ * @return false : 없으면 false
+ */
 bool
 bitmap_contains (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	size_t i;
@@ -242,6 +267,7 @@ bitmap_contains (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 
 /* Returns true if any bits in B between START and START + CNT,
    exclusive, are set to true, and false otherwise.*/
+//주어진 범위 안의 비트 중에서 1이 하나라도 있는지 확인
 bool
 bitmap_any (const struct bitmap *b, size_t start, size_t cnt) {
 	return bitmap_contains (b, start, cnt, true);
@@ -249,6 +275,7 @@ bitmap_any (const struct bitmap *b, size_t start, size_t cnt) {
 
 /* Returns true if no bits in B between START and START + CNT,
    exclusive, are set to true, and false otherwise.*/
+//주어진 범위 안의 모든 비트가 0인지 확인
 bool
 bitmap_none (const struct bitmap *b, size_t start, size_t cnt) {
 	return !bitmap_contains (b, start, cnt, true);
@@ -256,6 +283,7 @@ bitmap_none (const struct bitmap *b, size_t start, size_t cnt) {
 
 /* Returns true if every bit in B between START and START + CNT,
    exclusive, is set to true, and false otherwise. */
+//주어진 범위 안의 모든 비트가 1인지 확인
 bool
 bitmap_all (const struct bitmap *b, size_t start, size_t cnt) {
 	return !bitmap_contains (b, start, cnt, false);
@@ -267,6 +295,7 @@ bitmap_all (const struct bitmap *b, size_t start, size_t cnt) {
    consecutive bits in B at or after START that are all set to
    VALUE.
    If there is no such group, returns BITMAP_ERROR. */
+//연속된 cnt개의 비트가 모두 value로 설정된 첫번째 그룹의 시작 인덱스를 찾는다
 size_t
 bitmap_scan (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	ASSERT (b != NULL);
@@ -289,6 +318,7 @@ bitmap_scan (const struct bitmap *b, size_t start, size_t cnt, bool value) {
    If CNT is zero, returns 0.
    Bits are set atomically, but testing bits is not atomic with
    setting them. */
+//특정 값을 가진 연속된 비트 그룹을 찾고, 그 값을 반전시킨다.
 size_t
 bitmap_scan_and_flip (struct bitmap *b, size_t start, size_t cnt, bool value) {
 	size_t idx = bitmap_scan (b, start, cnt, value);
