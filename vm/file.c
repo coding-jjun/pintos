@@ -184,7 +184,7 @@ do_munmap (void *addr) {
       }
       if (pml4_is_dirty(cur->pml4, page->va)) {
         // lock_acquire(inode_get_lock(file_get_inode(page->file.file)));
-        file_write_at(page->file.file, addr, page->file.read_bytes, page->file.ofs);
+        file_write_at(page->file.file, page->va, page->file.read_bytes, page->file.ofs);
         // lock_release(inode_get_lock(file_get_inode(page->file.file)));
         pml4_set_dirty(cur->pml4, page->va, 0);
       }
