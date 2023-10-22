@@ -46,13 +46,12 @@ static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
 
-  file_seek(file_page->file, file_page->read_bytes);
-
-  if(file_read(file_page->file, kva, file_page->ofs) != (int)file_page->read_bytes){
+  file_seek(file_page->file, file_page->ofs);
+  if(file_read(file_page->file, kva, file_page->read_bytes) != (int)file_page->read_bytes){
     return false;
   }
 
-  memset(kva, 0, file_page->zero_bytes);
+  memset(kva + file_page->read_bytes, 0, file_page->zero_bytes);
   return true;
 }
 
