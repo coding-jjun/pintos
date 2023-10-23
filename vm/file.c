@@ -28,16 +28,24 @@ vm_file_init (void) {
 bool
 file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
-  struct lazy_load_info *load_info = (struct lazy_load_info *)page->uninit.aux;
+  // struct lazy_load_info *load_info = (struct lazy_load_info *)page->uninit.aux;
+
+  // ASSERT(load_info != NULL);
 
 	page->operations = &file_ops;
 	
 	struct file_page *file_page = &page->file;
 
-  file_page->file = load_info->file;
-  file_page->ofs = load_info->ofs;
-  file_page->read_bytes = load_info->read_bytes;
-  file_page->zero_bytes = load_info->zero_bytes;
+  if (type & VM_MARKER_1) {
+    file_page->header = true;
+  } else {
+    file_page->header = false;
+  }
+
+  // file_page->file = load_info->file;
+  // file_page->ofs = load_info->ofs;
+  // file_page->read_bytes = load_info->read_bytes;
+  // file_page->zero_bytes = load_info->zero_bytes;
 
 }
 
@@ -138,10 +146,17 @@ bool f_lazy_load_segment(struct page *page, void *aux) {
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
   struct lazy_load_info *load_info = (struct lazy_load_info *)aux;
+  	struct file_page *file_page = &page->file;
   struct file *file = load_info->file;
   off_t ofs = load_info->ofs;
   size_t read_bytes = load_info->read_bytes;
   size_t zero_bytes = load_info->zero_bytes;
+
+  file_page->file = file;
+  file_page->ofs = ofs;
+  file_page->read_bytes = read_bytes;
+  file_page->zero_bytes = zero_bytes;
+
   free(load_info);
   
   void *upage = page->va;

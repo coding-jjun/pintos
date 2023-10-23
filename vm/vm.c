@@ -34,7 +34,7 @@ page_get_type (struct page *page) {
 	int ty = VM_TYPE (page->operations->type);
 	switch (ty) {
 		case VM_UNINIT:
-			return VM_TYPE (page->uninit.type);
+			return page->uninit.type;
 		default:
 			return ty;
 	}
@@ -68,8 +68,8 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		 * TODO: should modify the field after calling the uninit_new. */
 		/* TODO: Insert the page into the spt. */
 		struct page *page = (struct page *)malloc(sizeof(struct page));
-		vm_initializer *initializer;
-		
+		typedef bool(*initializerFunc)(struct page *, enum vm_type, void *);
+		initializerFunc initializer = NULL;
 		
 		switch (VM_TYPE(type)) {
 			case VM_ANON:
@@ -294,9 +294,20 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 			if (!vm_alloc_page_with_initializer(type, upage, writable, initializer, aux)) {
 				return false;
 			}
-		} else {  // uninit page가 아닌 경우, page 할당 후 바로 mapping
+		} 
+		else if (parent_page->operations->type == VM_ANON) {
 			if (!vm_alloc_page(type, upage, writable) || !vm_claim_page(upage)) {
 				return false;
+			}
+		} else {  // VM_FILE일 때
+			if (parent_page->file.header) {  // header page인 경우
+				if (!vm_alloc_page(type | VM_MARKER_1, upage, writable) || !vm_claim_page(upage)) {
+					return false;
+				}
+			} else {  // header page가 아닌 경우
+				if (!vm_alloc_page(type, upage, writable) || !vm_claim_page(upage)) {
+					return false;
+				}
 			}
 		}
 
@@ -314,12 +325,6 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 	struct list *h_list = &thread_current()->head_list;
-	// struct list_elem *e;
-	// if (!list_empty(h_list)) {
-	// 	for (e = list_begin(h_list); e != list_end(h_list); e = list_next(e)) {
-	// 		do_munmap(list_entry(e, struct page, head_elem));
-	// 	}
-	// }
 
 	while (!list_empty(h_list)) {
 		do_munmap(list_entry(list_front(h_list), struct page, head_elem)->va);
