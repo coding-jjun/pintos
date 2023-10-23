@@ -36,7 +36,7 @@
 
 
 struct page * check_address(void *addr);
-void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write);
+void check_valid_buffer(void* buffer, unsigned size, bool to_write);
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
 
@@ -82,12 +82,15 @@ struct page * check_address(void *addr){
     return spt_find_page(&thread_current()->spt,addr);
 }
 
-void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write){
+void check_valid_buffer(void* buffer, unsigned size, bool to_write) {
     for(int i = 0; i < size; i++){
       struct page* page = check_address(buffer + i);
       
-      if(page == NULL || (to_write == true && page->writable == false)){
+      if (page == NULL) {
         exit(-1);
+      } else {
+        if (to_write == false && !page->writable)
+          exit(-1);
       }
     }
 }
@@ -140,11 +143,11 @@ void syscall_handler(struct intr_frame *f UNUSED) {
       f->R.rax = filesize(f->R.rdi);
       break;
     case SYS_READ:
-      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
+      // check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = read(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_WRITE:
-      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
+      // check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = write(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_SEEK:
@@ -329,6 +332,8 @@ struct file *fd_to_file(int fd) {
  * @brief 파일을 읽는 system call, 읽은 byte 수를 반환
  */
 int read(int fd, void *buffer, unsigned size) {
+  check_valid_buffer(buffer, size, false);
+  
   uint8_t *buf = buffer;
   off_t read_count;
 
@@ -366,6 +371,8 @@ int read(int fd, void *buffer, unsigned size) {
  * @brief 파일 내용을 작성하는 system call, 작성한 byte 수 반환
  */
 int write(int fd, const void *buffer, unsigned size) {
+  check_valid_buffer(buffer, size, true);
+
   int write_count;
 
   if (fd == STDOUT_FILENO) {

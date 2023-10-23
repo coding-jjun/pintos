@@ -146,4 +146,4 @@ make clean
 make
 cd build
 
-$MMAP_INHERIT
+$PT_WRITE_CODE2
