@@ -34,7 +34,7 @@ page_get_type (struct page *page) {
 	int ty = VM_TYPE (page->operations->type);
 	switch (ty) {
 		case VM_UNINIT:
-			return VM_TYPE (page->uninit.type);
+			return page->uninit.type;
 		default:
 			return ty;
 	}
@@ -68,19 +68,23 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		 * TODO: should modify the field after calling the uninit_new. */
 		/* TODO: Insert the page into the spt. */
 		struct page *page = (struct page *)malloc(sizeof(struct page));
-		vm_initializer *initializer;
+		typedef bool(*initializerFunc)(struct page *, enum vm_type, void *);
+		initializerFunc initializer = NULL;
 		
 		switch (VM_TYPE(type)) {
-		case VM_ANON:
-			initializer = anon_initializer;
-			break;
-		case VM_FILE:
-			initializer = file_backed_initializer;
-			break;
-		default:
-			break;
+			case VM_ANON:
+				initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				initializer = file_backed_initializer;
+				break;
+			default:
+				break;
 		}
 		uninit_new(page, upage, init, type, aux, initializer);
+		if (type & VM_MARKER_1) { // mmap시 header page인 경우
+			list_push_back(&thread_current()->head_list, &page->head_elem);
+		}
 		page->writable = writable;
 
 		return spt_insert_page(spt, page);
@@ -124,9 +128,14 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 /* Get the struct frame, that will be evicted. */
 static struct frame *
 vm_get_victim (void) {
+	if(evict_start == NULL && !list_empty(&frame_table)){
+		evict_start = list_begin(&frame_table);
+	}
+
 	struct frame *victim = NULL;
 	struct thread *cur = thread_current();
 	struct list_elem *e = evict_start;
+	int cnt = 0;
 
 	for (evict_start = e; evict_start != list_end(&frame_table); evict_start = list_next(evict_start)) {
 		victim = elem_to_frame(evict_start);
@@ -144,7 +153,6 @@ vm_get_victim (void) {
 			return victim;
 		}
 	}
-
 	return victim;
 }
 
@@ -286,9 +294,20 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct
 			if (!vm_alloc_page_with_initializer(type, upage, writable, initializer, aux)) {
 				return false;
 			}
-		} else {  // uninit page가 아닌 경우, page 할당 후 바로 mapping
+		} 
+		else if (parent_page->operations->type == VM_ANON) {
 			if (!vm_alloc_page(type, upage, writable) || !vm_claim_page(upage)) {
 				return false;
+			}
+		} else {  // VM_FILE일 때
+			if (parent_page->file.header) {  // header page인 경우
+				if (!vm_alloc_page(type | VM_MARKER_1, upage, writable) || !vm_claim_page(upage)) {
+					return false;
+				}
+			} else {  // header page가 아닌 경우
+				if (!vm_alloc_page(type, upage, writable) || !vm_claim_page(upage)) {
+					return false;
+				}
 			}
 		}
 
@@ -305,12 +324,19 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
-		hash_clear(&spt->spt_hash, spt_destructor);
+	struct list *h_list = &thread_current()->head_list;
+
+	while (!list_empty(h_list)) {
+		do_munmap(list_entry(list_front(h_list), struct page, head_elem)->va);
+	}
+
+	hash_clear(&spt->spt_hash, spt_destructor);
+	// hash_destroy(&spt->spt_hash, spt_destructor);
 }
 
 void spt_destructor(struct hash_elem *e, void* aux){
-    const struct page *p = h_elem_to_page(e);
-    free(p);
+    struct page *page = h_elem_to_page(e);
+    vm_dealloc_page(page);
 }
 
 // SECTION - Project 3 VM

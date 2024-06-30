@@ -36,7 +36,7 @@
 
 
 struct page * check_address(void *addr);
-void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write);
+void check_valid_buffer(void* buffer, unsigned size, bool to_write);
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
 
@@ -61,6 +61,9 @@ void delete_file_from_fd_table(int fd);
 
 int dup2(int oldfd, int newfd);
 
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap (void *addr); 
+
 /**
  * @brief 사용자 주소가 유효한지 여부를 판단한다. 두 가지 검사를 수행한다.
  * 1. 주소값이 KERN_BASE보다 크다면 커널주소를 참조하려고 하기 때문에 page
@@ -79,12 +82,15 @@ struct page * check_address(void *addr){
     return spt_find_page(&thread_current()->spt,addr);
 }
 
-void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write){
+void check_valid_buffer(void* buffer, unsigned size, bool to_write) {
     for(int i = 0; i < size; i++){
       struct page* page = check_address(buffer + i);
       
-      if(page == NULL || (to_write == true && page->writable == false)){
+      if (page == NULL) {
         exit(-1);
+      } else {
+        if (to_write == false && !page->writable)
+          exit(-1);
       }
     }
 }
@@ -137,11 +143,11 @@ void syscall_handler(struct intr_frame *f UNUSED) {
       f->R.rax = filesize(f->R.rdi);
       break;
     case SYS_READ:
-      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
+      // check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = read(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_WRITE:
-      check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
+      // check_valid_buffer((void *)f->R.rsi, f->R.rdx, f->rsp, 1);
       f->R.rax = write(f->R.rdi, (void *)f->R.rsi, f->R.rdx);
       break;
     case SYS_SEEK:
@@ -152,6 +158,12 @@ void syscall_handler(struct intr_frame *f UNUSED) {
       break;
     case SYS_CLOSE:
       close(f->R.rdi);
+      break;
+    case SYS_MMAP:
+      f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+      break;
+    case SYS_MUNMAP:
+      munmap(f->R.rdi);
       break;
     default:
       printf("system call!\n");
@@ -320,6 +332,8 @@ struct file *fd_to_file(int fd) {
  * @brief 파일을 읽는 system call, 읽은 byte 수를 반환
  */
 int read(int fd, void *buffer, unsigned size) {
+  check_valid_buffer(buffer, size, false);
+  
   uint8_t *buf = buffer;
   off_t read_count;
 
@@ -357,6 +371,8 @@ int read(int fd, void *buffer, unsigned size) {
  * @brief 파일 내용을 작성하는 system call, 작성한 byte 수 반환
  */
 int write(int fd, const void *buffer, unsigned size) {
+  check_valid_buffer(buffer, size, true);
+
   int write_count;
 
   if (fd == STDOUT_FILENO) {
@@ -434,3 +450,27 @@ void delete_file_from_fd_table(int fd) {
 /* Extra */
 int dup2(int oldfd, int newfd) { return 0; }
 // !SECTION - Project 2 USERPROG SYSTEM CALL
+
+// SECTION - Project 3 VM SYSTEM CALL
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
+  if (offset % PGSIZE != 0) {
+    return NULL;
+  }
+  if (addr != pg_round_down(addr) || is_kernel_vaddr(addr) || addr == NULL || (long long)length <= 0) {
+    return NULL;
+  }
+  if (fd < 2) {
+    exit(-1);
+  }
+  struct file *file = fd_to_file(fd);
+  if (file == NULL) {
+    return NULL;
+  }
+
+  return do_mmap(addr, length, writable, file, offset);
+}
+
+void munmap (void *addr) {
+  do_munmap(addr);
+}
+// !SECTION - Project 3 VM SYSTEM CALL

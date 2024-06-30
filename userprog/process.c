@@ -334,7 +334,8 @@ static void process_cleanup(void) {
   struct thread *curr = thread_current();
 
 #ifdef VM
-  supplemental_page_table_kill(&curr->spt);
+  if(!hash_empty(&curr->spt.spt_hash))
+    supplemental_page_table_kill(&curr->spt);
 #endif
 
   uint64_t *pml4;
@@ -454,9 +455,8 @@ struct ELF64_PHDR {
 
 bool setup_stack(struct intr_frame *if_);
 static bool validate_segment(const struct Phdr *, struct file *);
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable);
+static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+static bool lazy_load_segment(struct page *page, void *aux);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
  * Stores the executable's entry point into *RIP
@@ -777,9 +777,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
  *
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
-static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
-                         uint32_t read_bytes, uint32_t zero_bytes,
-                         bool writable) {
+static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
   ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT(pg_ofs(upage) == 0);
   ASSERT(ofs % PGSIZE == 0);
@@ -830,9 +828,6 @@ bool setup_stack(struct intr_frame *if_) {
       if_->rsp = USER_STACK;
       thread_current()->stack_bottom = stack_bottom;
     }
-  }
-  if (!success) {
-    printf("vm_claim 실패\n");
   }
   return success;
 }

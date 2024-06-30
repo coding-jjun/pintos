@@ -137,6 +137,7 @@ struct thread {
   struct supplemental_page_table spt;
   void *stack_bottom;
   void *rsp_stack;
+  struct list head_list;
 #endif
 
   /* Owned by thread.c. */
